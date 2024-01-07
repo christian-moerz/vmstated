@@ -1,0 +1,18 @@
+#!/bin/sh 
+
+. /etc/rc.subr 
+
+name="vmstated"
+rcvar="vmstated_enable"
+command="/usr/local/sbin/${name}"
+
+start_precmd="${name}_prestart"
+pidfile="/var/run/${name}.pid"
+
+vmstated_prestart()
+{
+	mkdir -p /var/log/vmstated
+}
+
+load_rc_config $name 
+run_rc_command "$1"

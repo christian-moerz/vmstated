@@ -1,0 +1,86 @@
+\"
+.\"Copyright (c) 2021, 2022, 2023 Christian Moerz <freebsd@ny-central.org>
+.\"
+.\"Permission to use, copy, modify, and distribute this software for any
+.\"purpose with or without fee is hereby granted, provided that the above
+.\"copyright notice and this permission notice appear in all copies.
+.\"
+.\"THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+.\"WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+.\"MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+.\"ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+.\"WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+.\"ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+.\"OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+.Dd $Mdocdate: December 22 2023 $
+.Dt VMSTATEDCTL 1
+.Os
+.Sh NAME
+.Nm vmstatedctl
+.Nd Starts, stops and manages virtual machines
+.Sh SYNOPSIS
+.Nm vmstatedctl
+.Op Fl h
+.Op Fl s Ar sockpath
+.Ar command
+.Ar vmname
+.Sh DESCRIPTION
+The
+.Nm
+utility sends user commands to
+.Xr vmstated 8
+to change the state and interoperate with virtual machines running on
+the host.
+.Sh OPTIONS
+.Bl -tag -width 10n
+.It Fl s Ar sockpath
+specify
+.Ar sockpath
+to be used as path to vmstated's socket file instead of
+.Pa /var/run/vmstated.sock .
+.It Fl h
+print usage summary and exit immediately
+.El
+.Ss Supported commands
+.Nm
+supports the following commands for the
+.Ar command
+argument:
+.Bl -tag -width 8n
+.It start
+Starts a virtual machine
+.It stop
+Stops a virtual machine
+.It status
+Lists the known virtual machines managed by
+.Xr vmstated 8
+and their current runtime state
+.El
+.Sh FILES
+.Bl -bullet -compact
+.It
+.Pa /var/run/vmstated.sock
+- socket file used by
+.Nm
+to communicate with vmstated.
+.El
+.Sh EXIT STATUS
+.Ex -std vmstated
+It may fail for one of the following reasons:
+.Pp
+.Bl -bullet -compact
+.It
+It failed to connect to vmstated.
+.It
+It failed to acquire necessary resources.
+.El
+.Sh SEE ALSO
+.Xr bhyve 8 ,
+.Xr vmstated 8
+.Sh HISTORY
+The
+.Nm
+command first appeared in
+.Fx 13.2 .
+.Sh AUTHORS
+.An Christian Moerz Aq Mt freebsd@ny-central.org

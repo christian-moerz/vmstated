@@ -1,0 +1,347 @@
+\"
+.\"Copyright (c) 2021, 2022, 2023 Christian Moerz <freebsd@ny-central.org>
+.\"
+.\"Permission to use, copy, modify, and distribute this software for any
+.\"purpose with or without fee is hereby granted, provided that the above
+.\"copyright notice and this permission notice appear in all copies.
+.\"
+.\"THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+.\"WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+.\"MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+.\"ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+.\"WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+.\"ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+.\"OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+.Dd $Mdocdate: December 22 2023 $
+.Dt VMSTATED 8
+.Os
+.Sh NAME
+.Nm vmstated
+.Nd Manage and run virtual machine in supervised manner
+.Sh SYNOPSIS
+.Nm vmstated
+.Op Fl h
+.Op Fl c Ar configdir
+.Op Fl f
+.Op Fl p Ar pidfile
+.Op Fl v
+.Sh DESCRIPTION
+.Nm
+is a user-space daemon that manages bhyve virtual machines. It
+provides hook scripts for easy network and storage setup and maintains
+records on a virtual machine's state while it is running.
+.Pp
+It provides a socket file on which utilities like
+.Xr vmstatedctl 1
+can send commands and retrieve information about its state and about
+the virtual machines
+.Nm
+is managing.
+.Ss Virtual Machine Configuration
+.Pp
+.Nm
+maintains a list of virtual machines, which are defined and configured
+via directories and files under
+.Pa /usr/local/etc/vmstated .
+.Pp
+It expects one sub-directory per virtual machine. The name of the
+sub directory may be chosen arbitrarily and does not have any impact on
+virtual machine configuration, for example
+.Pa /usr/local/etc/vmstated/vm0 .
+.Pp
+The contents of this virtual machine specific sub-directory define the
+configuration of the virtual machine and can also provide user defined
+hook scripts, which are called by
+.Nm
+when the associated virtual machine changes its state.
+.Pp
+.Nm
+expects a UCL-formatted configuration file called
+.Pa config
+within the sub-directory. This file contains the specification of the
+virtual machine.
+.Pp
+The following variables can be set for a virtual machine:
+.Bl -tag -width 11n
+.It name
+Specify the name of the virtual machine configuration. If omitted,
+.Nm
+assumes the parent tag name as the virtual machine name.
+.It configfile
+path to the bhyve configuration file that specifies the layout and
+settings for the virtual machine.
+.It scriptpath
+define an alternate path holding hook scripts instead of the default
+.Pa /usr/local/etc/vmstated/<name> .
+.It os
+Specify the operating system of the virtual machine.
+.It osversion
+Specify the operating system version of the virtual machine.
+.It owner
+designate the name of the virtual machine's owner. This user may start
+and stop the virtual machine using
+.Xr vmstatedctl 1 .
+.It group
+designate the name of the virtual machine's owning group. Any user in
+that group may start and stop the virtual machine using
+.Xr vmstatedctl 1 .
+.It description
+A brief description outlining the purpose and use of the virtual
+machine.
+.It maxrestart
+The number of times a virtual machine may restart within a set
+timeframe (see maxrestarttime) before it is put into failure mode. If
+no value is set, this value is set to 3 by default.
+.It maxrestarttime
+The timeframe in seconds in which the value "maxrestart" is being
+applied. For example, if maxrestart is set to 3 and maxrestarttime is
+set to 10, a virtual machine that attempts to restart 4 times within
+10 seconds will put into failure mode. If no value is set, this value
+is set to 30 by default.
+.El
+.Ss Hook Scripts
+.Nm
+allows placement of hook scripts within a virtual machine's
+configuration directory. It supports running scripts whenever the
+virtual machine enters one of the following states:
+.Bl -column scriptname_long desc
+.It start_network Ta The virtual machine's network is being prepared, i.e. tap interface(s)
+are being created and added to bridge devices.
+.It start_storage Ta The virtual machine's storage is being prepared, i.e. connections to
+remote storage is established, a volume is snapshotted before the
+virtual machine starts, etc.
+.It running Ta The virtual machine has reached its running state.
+.It restarting Ta The virtual machine has begun the process of restarting; this state
+may be assumed at any state before and after the virtual machine
+process terminates, depending on whether the restart was triggered
+from within the virtual machine or from outside via a management
+command sent to
+.Nm .
+Hence there is no guarantee that the virtual machine is still running
+or has shut down when this state is assumed.
+.It restarted Ta The virtual machine has completed its restart cycle and is about to
+reenter into the running state.
+.It stopping Ta Similar to the restarting state, the stopping state may be assumed any
+time during the actual shutdown of a virtual machine process;
+depending on the origin of the shutdown trigger, this state is either
+assumed before a TERM signal is sent to the
+.Xr bhyve 8
+process or after it has already terminated.
+.It stop_storage Ta The virtual machine's storage is being shut down and disconnected; any
+clean up steps are taken to make sure a later restart can re-connect
+to the virtual machine's storage again.
+.It stop_network Ta The virtual machine's network is being shut down and cleaned up; the
+steps taken during the start_network phase are reversed to restore the
+system to its' original state.
+.It stopped Ta The virtual machine is now stopped. It can be restarted by the user.
+.El
+.Pp
+To make
+.Nm
+execute a script for a particular state, place an executable (binary
+or shell script) with the state's name in the virtual machine's
+configuration directory.
+.Ss Output Logging
+.Nm
+creates one separate log file under
+.Pa /var/log/vmstated
+for each virtual machine recording the output of
+.Xr bhyve 8
+as well as of any hook scripts it calls during state transitions. The
+log filenames are set to the virtual machine's name and the suffix
+".log".
+.Pp
+Log files record stdout as well as stderr output.
+.Ss Failure Modes
+If a virtual machine fails to correctly start, i.e. either due to
+misconfiguration, disk issues or other problems making
+.Xr bhyve 8
+fail to complete the boot process,
+.Nm
+will keep track of the number of times it attempted to restart it. If
+the number of restart attempts exceeds the value of "maxrestart"
+within the last number of seconds set by value "maxrestarttime",
+.Nm
+will enter the virtual machine into failure mode and no longer attempt
+a restart.
+.Sh OPTIONS
+.Bl -tag -width 10n
+.It Fl c Ar configdir
+specify
+.Ar configdir
+to be used as configuration directory instead of
+.Pa /usr/local/etc/vmstated .
+.It Fl f
+run
+.Nm
+in foreground mode
+.It Fl h
+print usage summary and exit immediately
+.It Fl v
+be more verbose when logging
+.El
+.Sh FILES
+.Bl -bullet -compact
+.It
+.Pa /usr/local/etc/vmstated
+- default configuration directory path
+.It
+.Pa /var/log/vmstated
+- default log directory path
+.It
+.Pa /var/run/vmstated.pid
+- holds PID once vmstated has successfully started
+.It
+.Pa /var/run/vmstated.sock
+- UNIX socket through which
+.Xr vmstatedctl 1
+communicates with
+.Nm
+.El
+.Sh EXAMPLES
+To configure a virtual machine called "bsdvm", create a directory
+.Pa /usr/local/etc/vmstated/bsdvm
+and then create a new configuration
+.Pa /usr/local/etc/vmstated/bsdvm/config
+with the following contents:
+.Bd -literal -offset indent
+bsdvm {
+	configfile = /usr/local/etc/vmstated/bsdvm/bhyve_config;
+}
+.Ed
+.Pp
+Place a valid bhyve configuration file under
+.Pa /usr/local/etc/vmstated/bsdvm/bhyve_config .
+The file can be generated by calling
+.Xr bhyve 8
+with the desired options as well as
+.Ar -o config.dump=1
+and pipe the output into the
+.Pa bhyve_config
+file.
+.Bd -literal -offset indent
+bhyve -c 2 -m 4G -w -H \\
+             -s 0,hostbridge \\
+             -s 4,ahci-hd,disk.img \\
+             -s 5,virtio-net,tap0 \\
+             -s 29,fbuf,tcp=[::]:5900,w=800,h=600 \\
+             -s 30,xhci,tablet \\
+             -s 31,lpc -l com1,stdio \\
+             -l bootrom,/usr/local/share/uefi-firmware/BHYVE_UEFI.fd \\
+	     -o config.dump=1 \\
+             uefivm > /usr/local/etc/vmstated/bsdvm/bhyve_config
+.Ed
+.Pp
+Once the configuration file has been generated, make sure to remove
+the line "config.dump=1" from it:
+.Bd -literal -offset indent
+sed -i '' s@config.dump=1@@g \\
+	/usr/local/etc/vmstated/bsdvm/bhyve_config
+.Ed
+.Pp
+To add tap device "tap0" to bridge "bridge0" before the virtual
+machine starts and to destroy this tap interface when it shuts down,
+we can create a new script
+.Pa /usr/local/etc/vmstated/bsdvm/start_network
+with the following contents:
+.Bd -literal -offset indent
+#!/bin/sh
+ifconfig tap0 create
+ifconfig bridge0 addm tap0
+.Ed
+.Pp
+as well as
+.Pa /usr/local/etc/vmstated/bsdvm/stop_network:
+.Bd -literal -offset indent
+ifconfig tap0 destroy
+.Ed
+.Pp
+Make sure to make both scripts executable:
+.Bd -literal -offset indent
+chmod 755 /usr/local/etc/vmstated/bsdvm/start_network
+chmod 755 /usr/local/etc/vmstated/bsdvm/stop_network
+.Ed
+.Pp
+Finally, you can now use
+.Xr vmstatedctl 1
+to start the virtual machine:
+.Bd -literal -offset indent
+vmstatedctl start bsdvm
+.Ed
+.Pp
+You can then check the virtual machine's log file for output and
+progress information:
+.Bd -literal -offset indent
+tail -f /var/log/vmstated/bsdvm.log
+.Ed
+.Sh EXIT STATUS
+.Ex -std vmstated
+It may fail for one of the following reasons:
+.Pp
+.Bl -bullet -compact
+.It
+It failed to read the configuration directory.
+.It
+It failed to acquire necessary resources.
+.It
+It wasn't launched with necessary credentials.
+.El
+.Sh SEE ALSO
+.Xr bhyve 8 ,
+.Xr vmstatedctl 1
+.Sh HISTORY
+The
+.Nm
+command first appeared in
+.Fx 13.2 .
+.Sh AUTHORS
+.An Christian Moerz Aq Mt freebsd@ny-central.org
+.Sh CAVEATS
+.Nm
+is work in progress. The programming interface, hook script
+architecture and the inner workings may change in future
+releases. While some degree of testing has gone into its development,
+this is meant as a reference implementation and brain teaser for those
+involved with bhyve and jails state management.
+.Pp
+Hence, it will likely change inside and outside due to new insights
+that were learned from the development process. Expect having to redo
+hook scripts and configuration files when upgrading to a new version
+in the future.
+.Pp
+At the moment,
+.Nm
+must be started as root. As of January 2023, it is not making use of
+.Xr capsicum 4
+to limit its system interaction capabilities.
+.Pp
+With its initial release,
+.Nm
+does not yet persist its state when shutting down. If you shut down
+.Nm
+without first shutting down the virtual machines it started, those
+.Xr bhyve 8
+processes will become "orphaned" and will have to be shut down
+and cleaned up manually - as no hook scripts will be called.
+.Pp
+If a virtual machine enters into "failure" mode, it cannot yet be
+reset but requires a full restart of
+.Nm .
+.Pp
+Finally,
+.Nm
+does not allow to be started multiple times. If another instance of it
+is already running, it will print an error message and terminate.
+.Sh BUGS
+.Pp
+There may be bugs lurking in the dark. Particularly with
+.Bl -bullet -compact
+.It
+parsing configuration files with syntax errors,
+.It
+handling out of disk errors
+.It
+handling out of memory errors
+.It
+and more...
+.El

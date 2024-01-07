@@ -1,0 +1,5 @@
+test_collect
+test_nvlist
+test_socket
+test_socket_connect
+test_socket_parser
