@@ -1,13 +1,17 @@
 PORTNAME=	vmstated
 DISTVERSION=	0.01
 CATEGORIES=	sysutils
-MASTER_SITES=	https://github.com/christian-moerz/vmstated/releases/download/${DISTVERSION}/
 
 MAINTAINER=	freebsd@ny-central.org
 COMMENT=	Manages and runs bhyve virtual machines and infrastructure
 WWW=		https://www.github.com/christian-moerz/vmstated
 
 LICENSE=	BSD2CLAUSE
+
+USE_GITHUB=	yes
+GH_ACCOUNT=	christian-moerz
+GH_PROJECT=	vmstated
+GH_TAGNAME=	0.01
 
 post-patch:
 	${REINPLACE_CMD} "s@/usr/local@${PREFIX}@g" "${WRKSRC}/rc/vmstated"
