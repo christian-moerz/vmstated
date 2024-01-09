@@ -19,3 +19,20 @@ To uninstall vmstated, use the usual pkg command
 ```
 pkg deinstall vmstated
 ```
+
+### How to get started
+
+Please refer to the man pages for `vmstated(8)` or `vmstatedctl(1)` for further
+details on how to use `vmstated`.
+
+To start `vmstated` run
+
+```
+sysrc vmstated_enable=YES
+service vmstated start
+```
+
+- Configuration files go under `/usr/local/etc/vmstated`.
+- Log files are under `/var/log/vmstated`
+- PID file and socket are under `/var/run/`
+
