@@ -1,0 +1,11 @@
+**/*.o
+**/*.debug
+**/*~
+**/*.a
+**/*.pieo
+**/*.BAK
+**/Kyuafile
+**/.depend*
+**/*.full
+**/TAGS
+**/*.bak

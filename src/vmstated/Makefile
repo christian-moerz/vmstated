@@ -19,7 +19,7 @@ LDARGS+=	-L../libprocwatch -L../libsocket -L../libcommand -L../libstate
 install:
 	/bin/mkdir -p ${DESTDIR}${PREFIX}/sbin
 	/bin/mkdir -p ${DESTDIR}${PREFIX}/share/man/man8
-	/usr/bin/install -o root -m 750 vmstated ${DESTDIR}${PREFIX}/sbin/vmstated
+	/usr/bin/install -m 750 vmstated ${DESTDIR}${PREFIX}/sbin/vmstated
 	/usr/bin/install -m 444 vmstated.8.gz ${DESTDIR}${PREFIX}/share/man/man8
 
 .include <bsd.prog.mk>
