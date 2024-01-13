@@ -4,7 +4,7 @@
 
 name="vmstated"
 rcvar="vmstated_enable"
-command="/usr/local/sbin/${name}"
+command="PREFIX/sbin/${name}"
 
 start_precmd="${name}_prestart"
 pidfile="/var/run/${name}.pid"

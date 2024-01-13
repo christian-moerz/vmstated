@@ -1,5 +1,5 @@
 PORTNAME=	vmstated
-DISTVERSION=	0.03
+DISTVERSION=	0.04
 CATEGORIES=	sysutils
 
 MAINTAINER=	freebsd@ny-central.org
@@ -14,6 +14,6 @@ GH_PROJECT=	vmstated
 GH_TAGNAME=	${DISTVERSION}
 
 post-patch:
-	${REINPLACE_CMD} "s@/usr/local@${PREFIX}@g" "${WRKSRC}/rc/vmstated"
+	${REINPLACE_CMD} "s@PREFIX@${PREFIX}@g" "${WRKSRC}/rc/vmstated"
 
 .include <bsd.port.mk>
