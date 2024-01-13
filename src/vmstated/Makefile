@@ -21,5 +21,6 @@ install:
 	/bin/mkdir -p ${DESTDIR}${PREFIX}/share/man/man8
 	/usr/bin/install -m 750 vmstated ${DESTDIR}${PREFIX}/sbin/vmstated
 	/usr/bin/install -m 444 vmstated.8.gz ${DESTDIR}${PREFIX}/share/man/man8
+	/usr/bin/strip ${DESTDIR}${PREFIX}/sbin/vmstated
 
 .include <bsd.prog.mk>
