@@ -1,4 +1,4 @@
-bsd13 {
+testvm {
 	configfile = /usr/local/etc/vmstated/testvm/bhyve.conf;
 	owner = root;
 	os = FreeBSD;

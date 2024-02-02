@@ -2,6 +2,6 @@
 logger "Started start_network"
 /sbin/ifconfig tap99 create
 # Example for adding the tap interface to a bridge
-/sbin/ifconfig bridge00 addm tap99
+/sbin/ifconfig bridge0 addm tap99
 echo Network started.
 
