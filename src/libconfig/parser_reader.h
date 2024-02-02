@@ -25,24 +25,12 @@
  * SUCH DAMAGE.
  */
 
-#ifndef __BHYVE_DIRECTOR_H__
-#define __BHYVE_DIRECTOR_H__
+#ifndef __PARSER_READER_H__
+#define __PARSER_READER_H__
 
-#include "bhyve_config_object.h"
-#include "bhyve_messagesub_object.h"
+struct parser_reader;
 
-#include "../liblogging/log_director.h"
+struct parser_reader *pr_new(const char *filename);
+void pr_free(struct parser_reader *pr);
 
-struct bhyve_director;
-
-int bd_subscribe_commands(struct bhyve_director *bd, struct bhyve_messagesub_obj *bmo);
-struct bhyve_director *bd_new(struct bhyve_configuration_store_obj *bcso,
-			      struct log_director *ld);
-void bd_free(struct bhyve_director *bd);
-uint64_t bd_getmsgcount(struct bhyve_director *bd);
-int bd_startvm(struct bhyve_director *bd, const char *name);
-int bd_resetfailvm(struct bhyve_director *bd, const char *name);
-int bd_stopvm(struct bhyve_director *bd, const char *name);
-struct bhyve_vm_manager_info *bd_getinfo(struct bhyve_director *bd);
-
-#endif /* __BHYVE_DIRECTOR_H__ */
+#endif /* __PARSER_READER_H__ */

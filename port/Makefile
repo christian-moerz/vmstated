@@ -1,5 +1,5 @@
 PORTNAME=	vmstated
-DISTVERSION=	0.04
+DISTVERSION=	0.05
 CATEGORIES=	sysutils
 
 MAINTAINER=	freebsd@ny-central.org
@@ -12,6 +12,7 @@ USE_GITHUB=	yes
 GH_ACCOUNT=	christian-moerz
 GH_PROJECT=	vmstated
 GH_TAGNAME=	${DISTVERSION}
+ONLY_FOR_ARCHS=	aarch64 amd64 armv7
 
 post-patch:
 	${REINPLACE_CMD} "s@PREFIX@${PREFIX}@g" "${WRKSRC}/rc/vmstated"

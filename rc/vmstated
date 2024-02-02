@@ -11,7 +11,8 @@ pidfile="/var/run/${name}.pid"
 
 vmstated_prestart()
 {
-	mkdir -p /var/log/vmstated
+    mkdir -p PREFIX/etc/vmstated
+    mkdir -p /var/log/vmstated
 }
 
 load_rc_config $name 

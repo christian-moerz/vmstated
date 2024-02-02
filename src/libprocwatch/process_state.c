@@ -244,6 +244,10 @@ struct state_transition process_transition_list[] = {
 	{ /* STOPPED -> START_NETWORK */
 		.from = &process_state_list[11],
 		.to = &process_state_list[1]
+	},
+	{ /* FAILED -> INIT */
+		.from = &process_state_list[13],
+		.to = &process_state_list[0]
 	}
 };
 
@@ -445,6 +449,21 @@ psv_is_failurestate(struct process_state_vm *psv)
 		return true;
 	
 	return (FAILED == psv_getstate(psv));
+}
+
+/*
+ * reset a failed state back to init
+ */
+int
+psv_resetfailure(struct process_state_vm *psv)
+{
+	if (!psv)
+		return -1;
+
+	if (!psv_is_failurestate(psv))
+		return -1;
+
+	return sth_transitionto(psv->sth, INIT);
 }
 
 /*
@@ -852,6 +871,48 @@ psv_get_logredirector(struct process_state_vm *psv)
 	}
 	
 	return psv->ldr;
+}
+
+/*
+ * get a string representation for a state code
+ */
+const char *
+psv_state2string(bhyve_vmstate_t state)
+{
+	switch(state) {
+	case INIT:
+		return "INIT";
+	case START_NETWORK:
+		return "START_NETWORK";
+	case PRESTART_AFTER_RESTART:
+		return "PRESTART_AFTER_RESTART";
+	case START_STORAGE:
+		return "START_STORAGE";
+	case START_AFTER_RESTART:
+		return "START_AFTER_RESTART";
+	case RUNNING:
+		return "RUNNING";
+	case RESTARTED:
+		return "RESTARTED";
+	case STOPPING:
+		return "STOPPING";
+	case STOP_STORAGE:
+		return "STOP_STORAGE";
+	case PRESTOP_BEFORE_RESTART:
+		return "PRESTOP_BEFORE_RESTART";
+	case STOP_NETWORK:
+		return "STOP_NETWORK";
+	case RESTARTING:
+		return "RESTARTING";
+	case STOPPED:
+		return "STOPPED";
+	case RESTART_STOPPED:
+		return "RESTART_STOPPED";
+	case FAILED:
+		return "FAILED";
+	}
+
+	return "UNKNOWN";
 }
 
 CREATE_GETTERFUNC_STR(process_state_vm, psv, scriptpath);

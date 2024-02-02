@@ -25,24 +25,34 @@
  * SUCH DAMAGE.
  */
 
-#ifndef __BHYVE_DIRECTOR_H__
-#define __BHYVE_DIRECTOR_H__
+#ifndef __CONFIG_CONTROLLER_H__
+#define __CONFIG_CONTROLLER_H__
 
-#include "bhyve_config_object.h"
-#include "bhyve_messagesub_object.h"
+#include <stdbool.h>
+#include <unistd.h>
 
-#include "../liblogging/log_director.h"
+typedef enum {
+	TYPE_XHCI = 0
+} bhyve_parameters_controller_t;
 
-struct bhyve_director;
+/*
+ * represents a xhci controller
+ */
+struct bhyve_parameters_controller_xhci {
+	bool tablet;
+};
 
-int bd_subscribe_commands(struct bhyve_director *bd, struct bhyve_messagesub_obj *bmo);
-struct bhyve_director *bd_new(struct bhyve_configuration_store_obj *bcso,
-			      struct log_director *ld);
-void bd_free(struct bhyve_director *bd);
-uint64_t bd_getmsgcount(struct bhyve_director *bd);
-int bd_startvm(struct bhyve_director *bd, const char *name);
-int bd_resetfailvm(struct bhyve_director *bd, const char *name);
-int bd_stopvm(struct bhyve_director *bd, const char *name);
-struct bhyve_vm_manager_info *bd_getinfo(struct bhyve_director *bd);
+/*
+ * defines a controller
+ */
+struct bhyve_parameters_controller {
+	bhyve_parameters_controller_t controller_type;
 
-#endif /* __BHYVE_DIRECTOR_H__ */
+	union {
+		struct bhyve_parameters_controller_xhci xhci;
+	} data;
+};
+
+int bpp_controller_new_xhci(struct bhyve_parameters_controller *contr, bool tablet);
+
+#endif /* __CONFIG_CONTROLLER_H__ */

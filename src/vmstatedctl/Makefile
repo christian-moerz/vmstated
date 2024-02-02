@@ -17,7 +17,7 @@ LDARGS+=	-L../libprocwatch -L../libsocket -L../libcommand \
 
 install:
 	/bin/mkdir -p ${DESTDIR}${PREFIX}/bin
-	/bin/mkdir -p ${DESTDIR}${MANPREFIX}/man/man1
+	/bin/mkdir -p ${DESTDIR}${PREFIX}/share/man/man1
 	/usr/bin/install -m 755 vmstatedctl ${DESTDIR}${PREFIX}/bin/vmstatedctl
 	/usr/bin/install -m 444 vmstatedctl.1.gz ${DESTDIR}${PREFIX}/share/man/man1
 	/usr/bin/strip ${DESTDIR}${PREFIX}/bin/vmstatedctl

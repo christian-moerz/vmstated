@@ -9,3 +9,5 @@
 **/*.full
 **/TAGS
 **/*.bak
+port/work/**
+port/work/**

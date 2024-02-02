@@ -25,24 +25,63 @@
  * SUCH DAMAGE.
  */
 
-#ifndef __BHYVE_DIRECTOR_H__
-#define __BHYVE_DIRECTOR_H__
+#ifndef __CONFIG_NETWORK_H__
+#define __CONFIG_NETWORK_H__
 
-#include "bhyve_config_object.h"
-#include "bhyve_messagesub_object.h"
+#include <stddef.h>
+#include <stdlib.h>
+#include <limits.h>
+#include <unistd.h>
 
-#include "../liblogging/log_director.h"
+typedef enum {
+	TYPE_NET_VIRTIO = 0,
+	TYPE_NET_E1000 = 1
+} bhyve_parameters_network_t;
 
-struct bhyve_director;
+typedef enum {
+	TYPE_NET_BACKEND_TAP = 0,
+	TYPE_NET_BACKEND_VMNET = 1,
+	TYPE_NET_BACKEND_NETGRAPH = 2
+} bhyve_parameters_network_backend_t;
 
-int bd_subscribe_commands(struct bhyve_director *bd, struct bhyve_messagesub_obj *bmo);
-struct bhyve_director *bd_new(struct bhyve_configuration_store_obj *bcso,
-			      struct log_director *ld);
-void bd_free(struct bhyve_director *bd);
-uint64_t bd_getmsgcount(struct bhyve_director *bd);
-int bd_startvm(struct bhyve_director *bd, const char *name);
-int bd_resetfailvm(struct bhyve_director *bd, const char *name);
-int bd_stopvm(struct bhyve_director *bd, const char *name);
-struct bhyve_vm_manager_info *bd_getinfo(struct bhyve_director *bd);
+struct bhyve_parameters_network_tap {
+	uint16_t tap_id;
+};
 
-#endif /* __BHYVE_DIRECTOR_H__ */
+struct bhyve_parameters_network_vmnet {
+	uint16_t vmnet_id;
+};
+
+struct bhyve_parameters_network_netgraph {
+	char path[PATH_MAX];
+	char peerhook[PATH_MAX];
+	char socket[PATH_MAX];
+	char hook[PATH_MAX];
+};
+
+/*
+ * represents a network interface
+ */
+struct bhyve_parameters_network {
+	bhyve_parameters_network_t network_type;
+	bhyve_parameters_network_backend_t backend_type;
+	
+	unsigned char mac_address[6];
+	uint8_t mtu;
+
+	union {
+		struct bhyve_parameters_network_tap tap;
+		struct bhyve_parameters_network_vmnet vmnet;
+		struct bhyve_parameters_network_netgraph netgraph;
+	} data;
+};
+
+
+int bpp_new_network_tap(struct bhyve_parameters_network *network,
+			bhyve_parameters_network_t interface_type,
+			uint16_t tap_id);
+int bpp_new_network_vmnet(struct bhyve_parameters_network *network,
+			  bhyve_parameters_network_t interface_type,
+			  uint16_t tap_id);
+
+#endif /* __CONFIG_NETWORK_H__ */

@@ -306,7 +306,10 @@ ATF_TC_BODY(tc_bd_vmstartstop, tc)
 	/* we should now be in failure mode because we exceeded
 	   max reboot */
 	ATF_REQUIRE_EQ(1, psv_is_failurestate(bwv->state));
-	
+
+	/* attempt a reset */
+	ATF_REQUIRE_EQ(0, psv_resetfailure(bwv->state));
+	ATF_REQUIRE_EQ(0, psv_is_failurestate(bwv->state));
 
 	bd_free(bd);
 	bcsobj_free(bcso);

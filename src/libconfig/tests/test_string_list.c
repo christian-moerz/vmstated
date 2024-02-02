@@ -25,24 +25,36 @@
  * SUCH DAMAGE.
  */
 
-#ifndef __BHYVE_DIRECTOR_H__
-#define __BHYVE_DIRECTOR_H__
+#include <atf-c.h>
+#include <errno.h>
+#include <pthread.h>
+#include <stdbool.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
-#include "bhyve_config_object.h"
-#include "bhyve_messagesub_object.h"
+#include "../string_list.h"
 
-#include "../liblogging/log_director.h"
+ATF_TC(tc_sl_addhas);
+ATF_TC_HEAD(tc_sl_addhas, tc)
+{
+}
+ATF_TC_BODY(tc_sl_addhas, tc)
+{
+	struct string_list *sl = sl_new();
 
-struct bhyve_director;
+	ATF_REQUIRE(0 != sl);
 
-int bd_subscribe_commands(struct bhyve_director *bd, struct bhyve_messagesub_obj *bmo);
-struct bhyve_director *bd_new(struct bhyve_configuration_store_obj *bcso,
-			      struct log_director *ld);
-void bd_free(struct bhyve_director *bd);
-uint64_t bd_getmsgcount(struct bhyve_director *bd);
-int bd_startvm(struct bhyve_director *bd, const char *name);
-int bd_resetfailvm(struct bhyve_director *bd, const char *name);
-int bd_stopvm(struct bhyve_director *bd, const char *name);
-struct bhyve_vm_manager_info *bd_getinfo(struct bhyve_director *bd);
+	ATF_REQUIRE_EQ(0, sl_add(sl, "test"));
+	ATF_REQUIRE_EQ(true, sl_has(sl, "test"));
+	ATF_REQUIRE_EQ(false, sl_has(sl, "no"));
 
-#endif /* __BHYVE_DIRECTOR_H__ */
+	sl_free(sl);
+}
+
+ATF_TP_ADD_TCS(testplan)
+{
+	ATF_TP_ADD_TC(testplan, tc_sl_addhas);
+
+	return atf_no_error();
+}

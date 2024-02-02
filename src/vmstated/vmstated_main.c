@@ -38,6 +38,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sysexits.h>
 #include <syslog.h>
 #include <unistd.h>
 
@@ -82,28 +83,16 @@ vmstated_recv_data(void *ctx, uid_t uid, pid_t pid, const char *cmd, const char 
  * launch vmstated
  */
 int
-vmstated_launch(struct vmstated_opts *opts)
+vmstated_launch(struct vmstated_opts *opts,
+		struct bhyve_configuration_store *bcs)
 {
 	struct log_director *ld = 0;
-	struct bhyve_configuration_store *bcs = 0;
 	struct bhyve_configuration_store_obj *bcso = 0;
 	struct bhyve_director *bd = 0;
 	struct socket_handle *sh = 0;
 	struct vmstated_message_subscriber *vmsms = 0;
 
 	if (!(ld = ld_new(opts->verbose, opts->log_path))) {
-	}
-
-	if (!(bcs = bcs_new(opts->configdir_path))) {
-		ld_free(ld);
-		err(ENOMEM, "Failed to instantiate configuration store");
-	}
-
-	/* walk configuration directory */
-	if (bcs_walkdir(bcs)) {
-		ld_free(ld);
-		bcs_free(bcs);
-		err(errno, "Failed to walk configuration directory");
 	}
 
 	if (!(bcso = bcsobj_frombcs(bcs))) {
@@ -173,7 +162,6 @@ vmstated_launch(struct vmstated_opts *opts)
 	sh_free(sh);
 	/* release resources */
 	bd_free(bd);
-	bcs_free(bcs);
 	ld_free(ld);
 	
 	return 0;
@@ -344,7 +332,8 @@ check_already_running(struct vmstated_opts *default_opts)
  * run actual program
  */
 int
-run_program(struct vmstated_opts *default_opts)
+run_program(struct vmstated_opts *default_opts,
+	    struct bhyve_configuration_store *bcs)
 {
 	int result = 0;
 
@@ -362,10 +351,13 @@ run_program(struct vmstated_opts *default_opts)
 		    default_opts->pidfile_path);
 	}
 	
-	result = vmstated_launch(default_opts);
+	result = vmstated_launch(default_opts, bcs);
 	
 	syslog(LOG_INFO, "vmstated shutting down");
 
+	/* release store */
+	bcs_free(bcs);
+	
 	teardown_sighandler();
 	/* clear pid file */
 	unlink(default_opts->pidfile_path);
@@ -383,8 +375,9 @@ main(int argc, char **argv)
 {
 	/* set sane defaults for the beginning */
 	struct vmstated_opts default_opts = {0};
+	struct bhyve_configuration_store *bcs = 0;
 	int result = 0;
-
+	
 	strncpy(default_opts.configdir_path, "/usr/local/etc/vmstated", PATH_MAX);
 	strncpy(default_opts.pidfile_path, DEFAULTPATH_PIDFILE, PATH_MAX);
 	strncpy(default_opts.socket_path, DEFAULTPATH_SOCKET, PATH_MAX);
@@ -397,12 +390,22 @@ main(int argc, char **argv)
 		err(errno, "Failed to check whether program is already running");
 	}
 
+	if (!(bcs = bcs_new(default_opts.configdir_path))) {
+		err(ENOMEM, "Failed to instantiate configuration store");
+	}
+
+	/* walk configuration directory */
+	if (bcs_walkdir(bcs)) {
+		bcs_free(bcs);
+		err(errno, "Failed to walk configuration directory");
+	}
+	
 	if (default_opts.foreground)
-		return run_program(&default_opts);
+		return run_program(&default_opts, bcs);
 	else {
 		if (0 == fork()) {
 			if (0 == fork()) {
-				return run_program(&default_opts);
+				return run_program(&default_opts, bcs);
 			}
 			return 0;
 			closelog();

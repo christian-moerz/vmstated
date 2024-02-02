@@ -606,6 +606,47 @@ CREATE_GETTERFUNC_STR(bhyve_vm_info, bvmi, owner);
 CREATE_GETTERFUNC_STR(bhyve_vm_info, bvmi, group);
 CREATE_GETTERFUNC_STR(bhyve_vm_info, bvmi, description);
 
+/*
+ * get string representation
+ */
+const char *
+bvmi_get_statestring(const struct bhyve_vm_info *bvmi)
+{
+	switch (bvmi->vmstate) {
+	case 0:
+		return "INIT";
+	case 10:
+		return "STNW";
+	case 11:
+		return "RPRE";
+	case 20:
+		return "SAST";
+	case 21:
+		return "RAST";
+	case 100:
+		return "RUNN";
+	case 101:
+		return "RRUN";
+	case 102:
+		return "STOP";
+	case 150:
+		return "SOST";
+	case 160:
+		return "PRER";
+	case 200:
+		return "SONW";
+	case 210:
+		return "REST";
+	case 300:
+		return "STPD";
+	case 310:
+		return "RSTP";
+	case 400:
+		return "FAIL";
+	}
+	return "UNKW";
+}
+
 uint32_t
 bvmi_get_state(const struct bhyve_vm_info *bvmi)
 {

@@ -25,24 +25,23 @@
  * SUCH DAMAGE.
  */
 
-#ifndef __BHYVE_DIRECTOR_H__
-#define __BHYVE_DIRECTOR_H__
+#ifndef __CONFIG_VNC_H__
+#define __CONFIG_VNC_H__
 
-#include "bhyve_config_object.h"
-#include "bhyve_messagesub_object.h"
+#include <stddef.h>
+#include <stdlib.h>
+#include <unistd.h>
 
-#include "../liblogging/log_director.h"
+#include "config_core.h"
 
-struct bhyve_director;
+/*
+ * vnc config parameters
+ */
+struct bhyve_parameters_vnc {
+	uint16_t width;
+	uint16_t height;
+	uint16_t port;
+	char password[BPC_PASS_MAX];
+};
 
-int bd_subscribe_commands(struct bhyve_director *bd, struct bhyve_messagesub_obj *bmo);
-struct bhyve_director *bd_new(struct bhyve_configuration_store_obj *bcso,
-			      struct log_director *ld);
-void bd_free(struct bhyve_director *bd);
-uint64_t bd_getmsgcount(struct bhyve_director *bd);
-int bd_startvm(struct bhyve_director *bd, const char *name);
-int bd_resetfailvm(struct bhyve_director *bd, const char *name);
-int bd_stopvm(struct bhyve_director *bd, const char *name);
-struct bhyve_vm_manager_info *bd_getinfo(struct bhyve_director *bd);
-
-#endif /* __BHYVE_DIRECTOR_H__ */
+#endif /* __CONFIG_VNC_H__ */

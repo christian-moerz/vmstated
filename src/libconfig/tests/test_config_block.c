@@ -25,24 +25,56 @@
  * SUCH DAMAGE.
  */
 
-#ifndef __BHYVE_DIRECTOR_H__
-#define __BHYVE_DIRECTOR_H__
+#include <atf-c.h>
+#include <errno.h>
+#include <pthread.h>
+#include <stdbool.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
-#include "bhyve_config_object.h"
-#include "bhyve_messagesub_object.h"
+#include "../config_core.h"
+#include "../config_block.h"
+#include "../check.h"
 
-#include "../liblogging/log_director.h"
+ATF_TC(tc_bpc_blockadd);
+ATF_TC_HEAD(tc_bpc_blockadd, tc)
+{
+}
+ATF_TC_BODY(tc_bpc_blockadd, tc)
+{
+struct bhyve_parameters_core *bpc = 0;
+	struct bhyve_parameters_pcislot *bpp = 0;
+	struct bhyve_parameters_block *bpp_block = 0;
+	const struct bhyve_parameters_check *bpcheck = 0;
 
-struct bhyve_director;
+	bpc = bpc_new("testvm");
+	ATF_REQUIRE(0 != bpc);
+	ATF_REQUIRE_EQ(0, bpc_set_bootrom(bpc, "something", false, NULL));
+	bpp = bpp_new_isabridge();
+	bpc_addpcislot_at(bpc, 0, 1, 0, bpp);
 
-int bd_subscribe_commands(struct bhyve_director *bd, struct bhyve_messagesub_obj *bmo);
-struct bhyve_director *bd_new(struct bhyve_configuration_store_obj *bcso,
-			      struct log_director *ld);
-void bd_free(struct bhyve_director *bd);
-uint64_t bd_getmsgcount(struct bhyve_director *bd);
-int bd_startvm(struct bhyve_director *bd, const char *name);
-int bd_resetfailvm(struct bhyve_director *bd, const char *name);
-int bd_stopvm(struct bhyve_director *bd, const char *name);
-struct bhyve_vm_manager_info *bd_getinfo(struct bhyve_director *bd);
+	ATF_REQUIRE(0 != (bpp = bpp_new_hostbridge(HOSTBRIDGE)));
+	ATF_REQUIRE_EQ(0, bpc_addpcislot_at(bpc, 0, 0, 0, bpp));
+	
+	ATF_REQUIRE(0 != (bpp = bpp_new_block()));
+	ATF_REQUIRE(0 != (bpp_block = bpp_get_block(bpp)));
 
-#endif /* __BHYVE_DIRECTOR_H__ */
+	ATF_REQUIRE_EQ(0, bpp_new_block_nvme(bpp_block, "testpath"));
+	ATF_REQUIRE_EQ(0, bpc_addpcislot_at(bpc, 1, 0, 0, bpp));
+
+	bpcheck = check_parameters_ok(bpc);
+	if (bpcheck)
+		printf("error: %s\n", check_get_errormsg(bpcheck));
+	
+	ATF_REQUIRE_EQ(0, bpcheck);
+	
+	bpc_free(bpc);	
+}
+
+ATF_TP_ADD_TCS(testplan)
+{
+	ATF_TP_ADD_TC(testplan, tc_bpc_blockadd);
+
+	return atf_no_error();
+}

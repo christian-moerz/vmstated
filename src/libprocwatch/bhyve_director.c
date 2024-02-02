@@ -395,6 +395,30 @@ bd_stopvm(struct bhyve_director *bd, const char *name)
 }
 
 /*
+ * attempt failure reset for a vm
+ */
+int
+bd_resetfailvm(struct bhyve_director *bd, const char *name)
+{
+	if (!bd || !name) {
+		errno = EINVAL;
+		return -1;
+	}
+	
+	struct bhyve_watched_vm *bwv = bd_getvmbyname(bd, name);
+
+	if (!bwv) {
+		errno = ENOENT;
+		return -1;
+	}
+	
+	if (!psv_is_failurestate(bwv->state))
+		return BD_ERR_VMSTATENOFAIL;
+
+	return psv_resetfailure(bwv->state);		
+}
+
+/*
  * attempt starting a vm
  */
 int
@@ -842,7 +866,6 @@ bd_recv_ondata(void *ctx, uid_t uid, pid_t pid, const char *cmd,
 	/* zero out memory so we can run free on all vars later */
 	bzero(&bcmd, sizeof(struct bhyve_usercommand));
 
-	/* TODO log failure to parse command */
 	if (bcmd_parse_nvlistcmd(data, datalen, &bcmd)) {
 		syslog(LOG_ERR, "bcmd_parse_nvlistcmd failed");
 		result = -1;
@@ -861,7 +884,15 @@ bd_recv_ondata(void *ctx, uid_t uid, pid_t pid, const char *cmd,
 			syslog(LOG_INFO, "bd_stopvm result = %d", result);
 		}
 		if (!strcmp(bcmd.cmd, "status") && bmr) {
+			/* bmr reply manager is given to info func for
+			 * more in-depth reply than just error code
+			 */
 			result = bd_reply_info(bd, bmr);
+		}
+		if (!strcmp(bcmd.cmd, "resetfail")) {
+			syslog(LOG_INFO, "calling bd_resetfailvm");
+			result = bd_resetfailvm(bd, bcmd.vmname);
+			syslog(LOG_INFO, "bd_resetfailvm result = %d", result);
 		}
 	}
 	

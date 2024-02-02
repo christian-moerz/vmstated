@@ -65,6 +65,7 @@ const char * bvmi_get_owner(const struct bhyve_vm_info *bvmi);
 const char * bvmi_get_group(const struct bhyve_vm_info *bvmi);
 const char * bvmi_get_description(const struct bhyve_vm_info *bvmi);
 uint32_t bvmi_get_state(const struct bhyve_vm_info *bvmi);
+const char *bvmi_get_statestring(const struct bhyve_vm_info *bvmi);
 pid_t bvmi_get_pid(const struct bhyve_vm_info *bvmi);
 time_t bvmi_get_lastboot(const struct bhyve_vm_info *bvmi);
 

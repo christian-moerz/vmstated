@@ -25,24 +25,17 @@
  * SUCH DAMAGE.
  */
 
-#ifndef __BHYVE_DIRECTOR_H__
-#define __BHYVE_DIRECTOR_H__
+#ifndef __PARSER_OFFSETS_H__
+#define __PARSER_OFFSETS_H__
 
-#include "bhyve_config_object.h"
-#include "bhyve_messagesub_object.h"
+#include "../libutils/parser_mapping.h"
 
-#include "../liblogging/log_director.h"
+struct bhyve_parameters_parser_info {
+	struct parser_mapping mapping;
+	void*(*filter)(void *input);
+};
 
-struct bhyve_director;
+void *po_filter_bool(void *data);
+void *po_filter_memory(void *data);
 
-int bd_subscribe_commands(struct bhyve_director *bd, struct bhyve_messagesub_obj *bmo);
-struct bhyve_director *bd_new(struct bhyve_configuration_store_obj *bcso,
-			      struct log_director *ld);
-void bd_free(struct bhyve_director *bd);
-uint64_t bd_getmsgcount(struct bhyve_director *bd);
-int bd_startvm(struct bhyve_director *bd, const char *name);
-int bd_resetfailvm(struct bhyve_director *bd, const char *name);
-int bd_stopvm(struct bhyve_director *bd, const char *name);
-struct bhyve_vm_manager_info *bd_getinfo(struct bhyve_director *bd);
-
-#endif /* __BHYVE_DIRECTOR_H__ */
+#endif /* __PARSER_OFFSETS_H__*/

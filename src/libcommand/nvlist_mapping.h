@@ -29,22 +29,8 @@
 #define __NVLIST_MAPPING_H__
 
 #include <stddef.h>
+#include "../libutils/parser_mapping.h"
 
-/*
- * definition of a nvlist <-> struct mapping
- */
-struct nvlistitem_mapping {
-	size_t offset;
-	enum {
-		FIXEDSTRING,
-		DYNAMICSTRING,
-		UINT32,
-		UINT64,
-		BOOLEAN
-	} value_type;
-	size_t size;
-	const char *varname;
-};
-
+#define nvlistitem_mapping parser_mapping
 
 #endif /* __NVLIST_MAPPING_H__ */

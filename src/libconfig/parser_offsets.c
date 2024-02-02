@@ -25,24 +25,88 @@
  * SUCH DAMAGE.
  */
 
-#ifndef __BHYVE_DIRECTOR_H__
-#define __BHYVE_DIRECTOR_H__
+#include <ctype.h>
+#include <errno.h>
+#include <stdbool.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+#include <unistd.h>
 
-#include "bhyve_config_object.h"
-#include "bhyve_messagesub_object.h"
+#include "parser_offsets.h"
 
-#include "../liblogging/log_director.h"
+bool parser_bool_reg;
+uint64_t parser_uint64_reg;
 
-struct bhyve_director;
+/*
+ * filter a memory string into uint64_t of megabytes
+ */
+void *
+po_filter_memory(void *data)
+{
+	const char *val = data;
+	char *memstring = 0;
+	size_t memstring_len = 0;
+	char sizing = 0;
+	uint16_t multiplier = 0;
 
-int bd_subscribe_commands(struct bhyve_director *bd, struct bhyve_messagesub_obj *bmo);
-struct bhyve_director *bd_new(struct bhyve_configuration_store_obj *bcso,
-			      struct log_director *ld);
-void bd_free(struct bhyve_director *bd);
-uint64_t bd_getmsgcount(struct bhyve_director *bd);
-int bd_startvm(struct bhyve_director *bd, const char *name);
-int bd_resetfailvm(struct bhyve_director *bd, const char *name);
-int bd_stopvm(struct bhyve_director *bd, const char *name);
-struct bhyve_vm_manager_info *bd_getinfo(struct bhyve_director *bd);
+	if (!data) {
+		errno = EINVAL;
+		return NULL;
+	}
 
-#endif /* __BHYVE_DIRECTOR_H__ */
+	memstring = strdup(val);
+	memstring_len = strlen(memstring);
+	sizing = toupper(memstring[memstring_len-1]);
+
+	switch (sizing) {
+	case 'G':
+		multiplier = 1024;
+		break;
+	case 'M':
+		multiplier = 1;
+	default:
+		errno = EDOM;
+		return NULL;
+	}
+
+	memstring[memstring_len-1] = 0;
+	errno = 0;
+	
+	parser_uint64_reg = atoll(memstring);
+	if (errno)
+		return NULL;
+
+	return &parser_uint64_reg;
+}
+
+/*
+ * filter a boolean string into a boolean
+ */
+void *
+po_filter_bool(void *data)
+{
+	const char *val = data;
+	
+	if (!data) {
+		errno = EINVAL;
+		return NULL;
+	}
+
+	if (!*val) {
+		parser_bool_reg = false;
+		return &parser_bool_reg;
+	}
+
+	parser_bool_reg = !strcmp("true", val);
+	if (parser_bool_reg)
+		return &parser_bool_reg;
+
+	if (!strcmp("false", val)) {
+		parser_bool_reg = false;
+		return &parser_bool_reg;
+	}
+
+	errno = EDOM;
+	return NULL;
+}

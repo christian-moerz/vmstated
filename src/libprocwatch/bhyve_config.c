@@ -41,6 +41,7 @@
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
+#include <syslog.h>
 #include <time.h>
 #include <unistd.h>
 
@@ -54,7 +55,12 @@
 #include "../libutils/bhyve_utils.h"
 
 /*
- * represents a bhyve configuration
+ * represents a bhyve configuration to be handled by vmstated. This
+ * focuses on vmstated related information and does not include any
+ * bhyve configuration details but is more of a meta data structure.
+ *
+ * Handling and working bhyve configuration data is managed by
+ * structures in libconfig.
  */
 struct bhyve_configuration {
 	char name[PATH_MAX];
@@ -83,6 +89,10 @@ struct bhyve_configuration {
 	LIST_ENTRY(bhyve_configuration) entries;
 };
 
+/*
+ * this maps configuration variable names in our UCL config files into
+ * the memory offsets in struct bhyve_configuration
+ */
 struct nvlistitem_mapping bc_nvlist2config[] = {
 	{
 		.offset = offsetof(struct bhyve_configuration, name),
@@ -596,6 +606,7 @@ bcs_walkdir(struct bhyve_configuration_store *bcs)
 	size_t pathlen = strlen(bcs->searchpath);
 	size_t maxbuf = 0;
 	int result = 0;
+	bool found_one = false;
 
 	if (NULL != (d = opendir(bcs->searchpath))) {
 		while (1) {
@@ -615,19 +626,32 @@ bcs_walkdir(struct bhyve_configuration_store *bcs)
 				subpath = malloc(maxbuf);
 				if (!subpath) {
 					result = -1;
+					syslog(LOG_ERR, "Memory allocation error");
 					break;
 				}
 				snprintf(subpath, maxbuf, "%s/%s", bcs->searchpath, de->d_name);
-				result = bcs_parseconfdir(bcs, subpath);
-				if (result)
-					break;
+				if (!bcs_parseconfdir(bcs, subpath)) {
+					found_one = true;
+				} else {
+					syslog(LOG_INFO,
+					       "No configuration found in \"%s/%s\" - ignoring",
+					       bcs->searchpath,
+					       de->d_name);
+				}
 			}
 		}
-	}
+	} 
 	free(subpath);
+
+	if (found_one)
+		result = 0;
+	else
+		result = -1;
 
 	if (!d) {
 		/* we failed to access the directory */
+		syslog(LOG_ERR, "Configuration directory \"%s\" could not be "
+		       "accessed", bcs->searchpath);
 		result = -1;
 	}
 

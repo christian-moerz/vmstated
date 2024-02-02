@@ -32,7 +32,7 @@ utility sends user commands to
 to change the state and interoperate with virtual machines running on
 the host.
 .Sh OPTIONS
-.Bl -tag -width 10n
+.Bl -tag -width 11n
 .It Fl s Ar sockpath
 specify
 .Ar sockpath
@@ -46,7 +46,7 @@ print usage summary and exit immediately
 supports the following commands for the
 .Ar command
 argument:
-.Bl -tag -width 8n
+.Bl -tag -width 10n
 .It start
 Starts a virtual machine
 .It stop
@@ -55,6 +55,9 @@ Stops a virtual machine
 Lists the known virtual machines managed by
 .Xr vmstated 8
 and their current runtime state
+.It failreset
+Resets a virtual machine, that has reached FAILED state back to the
+INIT state.
 .El
 .Sh FILES
 .Bl -bullet -compact

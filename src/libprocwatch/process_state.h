@@ -49,6 +49,8 @@
  *            PRESTART_AFTER_RETART -> START_AFTER_RESTART ->
  *            RESTARTED -> RUNNING
  *
+ * FAILED -> INIT
+ *
  * FAILED can be reached from any point in between
  */
 typedef enum {
@@ -89,5 +91,8 @@ struct process_state_vm *
 psv_with_logredirector(struct process_state_vm *psv,
 		       struct log_director_redirector *ldr);
 struct log_director_redirector *psv_get_logredirector(struct process_state_vm *psv);
+int psv_resetfailure(struct process_state_vm *psv);
+
+const char *psv_state2string(bhyve_vmstate_t state);
 
 #endif /* __PROCESS_STATE_H__ */

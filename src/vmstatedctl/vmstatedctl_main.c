@@ -74,6 +74,7 @@ int cmd_stop(int, char**, struct bhyve_usercommand *);
 int cmd_status(int argc, char **argv, struct bhyve_usercommand *buc);
 int cmd_default_reply(struct bhyve_usercommand *buc);
 int cmd_status_reply(struct bhyve_usercommand *buc);
+int cmd_failreset(int argc, char **argv, struct bhyve_usercommand *buc);
 
 /*
  * list of available commands
@@ -93,6 +94,11 @@ struct vmstatedctl_cmd commands[] = {
 		.command = "status",
 		.func = cmd_status,
 		.requires_vm_name = false
+	},
+	{
+		.command = "failreset",
+		.func = cmd_failreset,
+		.requires_vm_name = true
 	}
 };
 
@@ -108,6 +114,10 @@ struct vmstatedctl_replyhandler reply_handler[] = {
 	{
 		.command = "status",
 		.func = cmd_status_reply
+	},
+	{
+		.command = "failreset",
+		.func = cmd_default_reply
 	}
 };
 
@@ -167,8 +177,8 @@ cmd_status_reply(struct bhyve_usercommand *buc)
 	for (counter = 0; counter < vm_count; counter++) {
 		bvi = bvmmi_getvminfo_byidx(bvmmi, counter);
 		
-		printf("%-16s   %04d %-8s\n", bvmi_get_vmname(bvi),
-		       bvmi_get_state(bvi),
+		printf("%-16s   %4s %-8s\n", bvmi_get_vmname(bvi),
+		       bvmi_get_statestring(bvi),
 		       bvmi_get_owner(bvi));
 		       
 	}
@@ -199,6 +209,15 @@ cmd_status(int argc, char **argv, struct bhyve_usercommand *buc)
 {
 	buc->cmd = strdup("status");
 	buc->vmname = NULL;
+
+	return 0;
+}
+
+int
+cmd_failreset(int argc, char **argv, struct bhyve_usercommand *buc)
+{
+	buc->cmd = strdup("resetfail");
+	buc->vmname = strdup(argv[0]);
 
 	return 0;
 }
@@ -248,6 +267,17 @@ send_bhyvecmd(struct socket_connection *sc, struct bhyve_usercommand *buc)
 	return bcs_sendcmd_raw(buc, &bcs);
 }
 
+void
+print_usage()
+{
+	printf("Usage: vmstatedctl [command] <vmname>\n\n");
+	printf("Following vm commands are supported and require a vmname parameter:\n");
+	printf(" - start\n - stop\n - failreset\n\n");
+	printf("Following general commands are supported and do not require a vmname:\n");
+	printf(" - status\n\n");
+	exit(0);
+}
+
 /*
  * program entry point
  */
@@ -270,6 +300,7 @@ main(int argc, char **argv)
 	size_t bufferlen = 0;
 	size_t minargcount = 3;
 	char *command_name = 0;
+	bool found_command = false;
 
 	/* set sane default options */
 	strncpy(opts.sockpath, DEFAULTPATH_SOCKET, PATH_MAX);
@@ -283,6 +314,10 @@ main(int argc, char **argv)
 
 	if (!(nvl = nvlist_create(0))) {
 		err(ENOMEM, "Failed to allocate nvlist");
+	}
+
+	if (argc < 2) {
+		print_usage();
 	}
 
 	command_name = argv[1];
@@ -308,8 +343,15 @@ main(int argc, char **argv)
 							ptr,
 							&usrcmd);
 
-			
+
+			found_command = true;
 		}
+	}
+
+	if (!found_command) {
+		/* unknown command */
+		printf("Unknown command: %s\n", command_name);
+		exit(1);
 	}
 
 	if (!result) {

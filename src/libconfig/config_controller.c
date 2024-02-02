@@ -25,24 +25,27 @@
  * SUCH DAMAGE.
  */
 
-#ifndef __BHYVE_DIRECTOR_H__
-#define __BHYVE_DIRECTOR_H__
+#include <errno.h>
+#include <stddef.h>
+#include <stdlib.h>
+#include <unistd.h>
 
-#include "bhyve_config_object.h"
-#include "bhyve_messagesub_object.h"
+#include "config_controller.h"
 
-#include "../liblogging/log_director.h"
+/*
+ * configure for a new controller
+ */
+int
+bpp_controller_new_xhci(struct bhyve_parameters_controller *contr, bool tablet)
+{
+	if (!contr) {
+		errno = EINVAL;
+		return -1;
+	}
+	
+	contr->controller_type = TYPE_XHCI;
+	contr->data.xhci.tablet = tablet;
 
-struct bhyve_director;
+	return 0;
+}
 
-int bd_subscribe_commands(struct bhyve_director *bd, struct bhyve_messagesub_obj *bmo);
-struct bhyve_director *bd_new(struct bhyve_configuration_store_obj *bcso,
-			      struct log_director *ld);
-void bd_free(struct bhyve_director *bd);
-uint64_t bd_getmsgcount(struct bhyve_director *bd);
-int bd_startvm(struct bhyve_director *bd, const char *name);
-int bd_resetfailvm(struct bhyve_director *bd, const char *name);
-int bd_stopvm(struct bhyve_director *bd, const char *name);
-struct bhyve_vm_manager_info *bd_getinfo(struct bhyve_director *bd);
-
-#endif /* __BHYVE_DIRECTOR_H__ */

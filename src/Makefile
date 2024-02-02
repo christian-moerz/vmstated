@@ -1,9 +1,10 @@
 # $FreeBSD
 
-SUBDIR= liblogging libutils libsocket libstate libcommand libprocwatch vmstated vmstatedctl
+SUBDIR= libconfig liblogging libutils libsocket libstate libcommand \
+	libprocwatch vmstated vmstatedctl
 
 tags:
-	/bin/rm TAGS
+	/bin/rm -f TAGS
 	find . -name '*.c' -print -or -name '*.h' -print | xargs etags --append
 
 install:

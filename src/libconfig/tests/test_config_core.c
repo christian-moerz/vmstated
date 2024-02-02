@@ -25,24 +25,73 @@
  * SUCH DAMAGE.
  */
 
-#ifndef __BHYVE_DIRECTOR_H__
-#define __BHYVE_DIRECTOR_H__
+#include <atf-c.h>
+#include <errno.h>
+#include <pthread.h>
+#include <stdbool.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
-#include "bhyve_config_object.h"
-#include "bhyve_messagesub_object.h"
+#include "../config_core.h"
 
-#include "../liblogging/log_director.h"
+ATF_TC(tc_bpp_initfree);
+ATF_TC_HEAD(tc_bpp_initfree, tc)
+{
+}
+ATF_TC_BODY(tc_bpp_initfree, tc)
+{
+	struct bhyve_parameters_core *bpc = 0;
 
-struct bhyve_director;
+	bpc = bpc_new("testvm");
 
-int bd_subscribe_commands(struct bhyve_director *bd, struct bhyve_messagesub_obj *bmo);
-struct bhyve_director *bd_new(struct bhyve_configuration_store_obj *bcso,
-			      struct log_director *ld);
-void bd_free(struct bhyve_director *bd);
-uint64_t bd_getmsgcount(struct bhyve_director *bd);
-int bd_startvm(struct bhyve_director *bd, const char *name);
-int bd_resetfailvm(struct bhyve_director *bd, const char *name);
-int bd_stopvm(struct bhyve_director *bd, const char *name);
-struct bhyve_vm_manager_info *bd_getinfo(struct bhyve_director *bd);
+	ATF_REQUIRE(0 != bpc);
 
-#endif /* __BHYVE_DIRECTOR_H__ */
+	bpc_free(bpc);	
+}
+
+ATF_TC(tc_bpp_iterator);
+ATF_TC_HEAD(tc_bpp_iterator, tc)
+{
+}
+ATF_TC_BODY(tc_bpp_iterator, tc)
+{
+	struct bhyve_parameters_core *bpc = 0;
+	struct bhyve_parameters_pcislot *bpp = 0;
+	const struct bhyve_parameters_pcislot *cmp_bpp = 0;
+	struct bhyve_parameters_pcislot_iter *bppi = 0;
+	size_t counter = 0;
+
+	bpc = bpc_new("testvm");
+
+	ATF_REQUIRE(0 != bpc);
+
+	/* create and add new hostbridge */
+	ATF_REQUIRE(0 != (bpp = bpp_new_hostbridge(HOSTBRIDGE)));
+
+	ATF_REQUIRE_EQ(0, bpc_addpcislot_at(bpc, 0, 0, 0, bpp));
+
+	/* get iterator */
+	ATF_REQUIRE(0 != (bppi = bpc_iter_pcislots(bpc)));
+
+	while (bppi_next(bppi)) {
+		ATF_REQUIRE(0 != (cmp_bpp = bppi_item(bppi)));
+		ATF_REQUIRE_EQ(cmp_bpp, bpp);
+		counter++;
+	}
+
+	ATF_REQUIRE_EQ(1, counter);
+
+	bppi_free(bppi);
+
+	bpc_free(bpc);	
+}
+
+
+ATF_TP_ADD_TCS(testplan)
+{
+	ATF_TP_ADD_TC(testplan, tc_bpp_initfree);
+	ATF_TP_ADD_TC(testplan, tc_bpp_iterator);
+	
+	return atf_no_error();
+}

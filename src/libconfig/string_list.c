@@ -25,70 +25,107 @@
  * SUCH DAMAGE.
  */
 
+#include <sys/queue.h>
+
+#include <errno.h>
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 
-#include <private/ucl/ucl.h>
+struct string_list_item {
+	char *string;
 
-#include "bhyve_config.h"
-#include "bhyve_config_console.h"
-#include "bhyve_uclparser.h"
+	SLIST_ENTRY(string_list_item) entries;
+};
 
-#include "../libcommand/nvlist_mapping.h"
+struct string_list {
+	SLIST_HEAD(, string_list_item) items;
+};
 
 /*
- * parse specific console
+ * create new string list
+ */
+struct string_list *
+sl_new()
+{
+	struct string_list *sl = 0;
+
+	if (!(sl = malloc(sizeof(struct string_list))))
+		return NULL;
+
+	SLIST_INIT(&sl->items);
+
+	return sl;	
+}
+
+/*
+ * check if string has a string
+ */
+bool
+sl_has(const struct string_list *sl, const char *string)
+{
+	if (!sl || !string) {
+		errno = EINVAL;
+		return false;
+	}
+
+	struct string_list_item *sli = 0;
+
+	SLIST_FOREACH(sli, &sl->items, entries) {
+		if (!strcmp(sli->string, string))
+			return true;
+	}
+
+	return false;
+}
+
+/*
+ * adds a string into the string list
  */
 int
-buf_parse_console(void *ctx, const char *consolename,
-		  const ucl_object_t *confobj)
+sl_add(struct string_list *sl, const char *string)
 {
-	struct bhyve_configuration_console_list *bccl = ctx;
-	struct bhyve_configuration_console *bcc = 0;
-	struct nvlistitem_mapping *mappings = bcc_get_mapping();
+	struct string_list_item *sli = 0;
 
-	/* set default name and enable by default */
-	if (!(bcc = bcc_new(consolename, true)))
-		return -1;
-
-	if (bup_generic_parsefromucl(bcc, confobj,
-					 mappings, bcc_get_mapping_count(),
-					 NULL, 0)) {
-		bccl_free(bccl);
+	if (!sl || !string) {
+		errno = EINVAL;
 		return -1;
 	}
 
-	if (bccl_add(bccl, bcc)) {
-		bcc_free(bcc);
+	if (!(sli = malloc(sizeof(struct string_list_item))))
+		return -1;
+
+	if (!(sli->string = strdup(string))) {
+		free(sli);
 		return -1;
 	}
-	
+
+	SLIST_INSERT_HEAD(&sl->items, sli, entries);
+
 	return 0;
 }
 
 /*
- * parses console sub elements
+ * release previously allocated string list
  */
-int
-buf_parse_console_list(struct bhyve_configuration *bc,
-		       const ucl_object_t *confobj,
-		       void **ctx)
+void
+sl_free(struct string_list *sl)
 {
-	struct bhyve_configuration_console_list *bccl = 0;
-
-	/* allocate a new console list */
-	if (!(bccl = bccl_new()))
-		return -1;
-
-	if (bup_parselistfromucl(bccl, confobj, buf_parse_console)) {
-		bccl_free(bccl);
-		return -1;
+	if (!sl) {
+		errno = EINVAL;
+		return;
 	}
 
-	if (ctx)
-		*ctx = bccl;
+	struct string_list_item *sli = 0;
 	
-	return 0;
+	while (!SLIST_EMPTY(&sl->items)) {
+		sli = SLIST_FIRST(&sl->items);
+		SLIST_REMOVE_HEAD(&sl->items, entries);
+		free(sli->string);
+		free(sli);
+	}
+
+	free(sl);
 }

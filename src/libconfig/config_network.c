@@ -25,24 +25,58 @@
  * SUCH DAMAGE.
  */
 
-#ifndef __BHYVE_DIRECTOR_H__
-#define __BHYVE_DIRECTOR_H__
+#include <errno.h>
 
-#include "bhyve_config_object.h"
-#include "bhyve_messagesub_object.h"
+#include "config_network.h"
 
-#include "../liblogging/log_director.h"
+int
+bpp_new_network_generic(struct bhyve_parameters_network *network,
+			bhyve_parameters_network_t interface_type,
+			bhyve_parameters_network_backend_t backend_type,
+			uint16_t ident)
+{
+	if (!network) {
+		errno = EINVAL;
+		return -1;
+	}
 
-struct bhyve_director;
+	network->network_type = interface_type;
+	network->backend_type = backend_type;
 
-int bd_subscribe_commands(struct bhyve_director *bd, struct bhyve_messagesub_obj *bmo);
-struct bhyve_director *bd_new(struct bhyve_configuration_store_obj *bcso,
-			      struct log_director *ld);
-void bd_free(struct bhyve_director *bd);
-uint64_t bd_getmsgcount(struct bhyve_director *bd);
-int bd_startvm(struct bhyve_director *bd, const char *name);
-int bd_resetfailvm(struct bhyve_director *bd, const char *name);
-int bd_stopvm(struct bhyve_director *bd, const char *name);
-struct bhyve_vm_manager_info *bd_getinfo(struct bhyve_director *bd);
+	switch(backend_type) {
+	case TYPE_NET_BACKEND_TAP:
+		network->data.tap.tap_id = ident;
+		break;
+	case TYPE_NET_BACKEND_VMNET:
+		network->data.vmnet.vmnet_id = ident;
+		break;
+	default:
+		errno = EINVAL;
+		return -1;
+	}
 
-#endif /* __BHYVE_DIRECTOR_H__ */
+	return 0;
+}
+
+
+/*
+ * set up new tap device
+ */
+int
+bpp_new_network_tap(struct bhyve_parameters_network *network,
+		    bhyve_parameters_network_t interface_type,
+		    uint16_t tap_id)
+{
+	return bpp_new_network_generic(network, interface_type, TYPE_NET_BACKEND_TAP, tap_id);
+}
+
+/*
+ * set new vmnet interface
+ */
+int
+bpp_new_network_vmnet(struct bhyve_parameters_network *network,
+		    bhyve_parameters_network_t interface_type,
+		    uint16_t tap_id)
+{
+	return bpp_new_network_generic(network, interface_type, TYPE_NET_BACKEND_VMNET, tap_id);
+}

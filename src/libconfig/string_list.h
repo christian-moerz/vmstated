@@ -25,24 +25,14 @@
  * SUCH DAMAGE.
  */
 
-#ifndef __BHYVE_DIRECTOR_H__
-#define __BHYVE_DIRECTOR_H__
+#ifndef __STRING_LIST_H__
+#define __STRING_LIST_H__
 
-#include "bhyve_config_object.h"
-#include "bhyve_messagesub_object.h"
+struct string_list;
 
-#include "../liblogging/log_director.h"
+struct string_list *sl_new();
+int sl_add(struct string_list *sl, const char *string);
+void sl_free(struct string_list *sl);
+bool sl_has(const struct string_list *sl, const char *string);
 
-struct bhyve_director;
-
-int bd_subscribe_commands(struct bhyve_director *bd, struct bhyve_messagesub_obj *bmo);
-struct bhyve_director *bd_new(struct bhyve_configuration_store_obj *bcso,
-			      struct log_director *ld);
-void bd_free(struct bhyve_director *bd);
-uint64_t bd_getmsgcount(struct bhyve_director *bd);
-int bd_startvm(struct bhyve_director *bd, const char *name);
-int bd_resetfailvm(struct bhyve_director *bd, const char *name);
-int bd_stopvm(struct bhyve_director *bd, const char *name);
-struct bhyve_vm_manager_info *bd_getinfo(struct bhyve_director *bd);
-
-#endif /* __BHYVE_DIRECTOR_H__ */
+#endif /* __STRING_LIST_H__ */

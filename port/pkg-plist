@@ -1,8 +1,9 @@
-@mode 755
 bin/vmstatedctl
 etc/rc.d/vmstated
-@mode 750
+@sample %%ETCDIR%%/testvm/bhyve.conf.sample
+@sample %%ETCDIR%%/testvm/config.sample
+@sample %%ETCDIR%%/testvm/start_network.sample
+@sample %%ETCDIR%%/testvm/stop_network.sample
 sbin/vmstated
-@mode 0444
 share/man/man1/vmstatedctl.1.gz
 share/man/man8/vmstated.8.gz

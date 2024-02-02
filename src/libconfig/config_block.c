@@ -25,24 +25,68 @@
  * SUCH DAMAGE.
  */
 
-#ifndef __BHYVE_DIRECTOR_H__
-#define __BHYVE_DIRECTOR_H__
+#include <string.h>
 
-#include "bhyve_config_object.h"
-#include "bhyve_messagesub_object.h"
+#include "config_block.h"
 
-#include "../liblogging/log_director.h"
+int
+bpp_new_block_generic(struct bhyve_parameters_block *block, const char *storage_path,
+		      bhyve_parameters_block_t block_type)
+{
+	if (!block || !storage_path) {
+		errno = EINVAL;
+		return -1;
+	}
 
-struct bhyve_director;
+	bzero(block, sizeof(struct bhyve_parameters_block));
+	block->block_type = block_type;
+	switch (block_type) {
+	case TYPE_BLOCK_VIRTIO:
+		strncpy(block->data.virtio_blk.storage_path,
+			storage_path,
+			PATH_MAX);
+		break;
+	case TYPE_BLOCK_NVME:
+		strncpy(block->data.nvme.storage_path,
+			storage_path,
+			PATH_MAX);
+		break;
+	case TYPE_BLOCK_AHCI_HD:
+		strncpy(block->data.ahci_hd.storage_path,
+			storage_path,
+			PATH_MAX);
+		break;
+	default:
+		errno = EINVAL;
+		return -1;
+	}
 
-int bd_subscribe_commands(struct bhyve_director *bd, struct bhyve_messagesub_obj *bmo);
-struct bhyve_director *bd_new(struct bhyve_configuration_store_obj *bcso,
-			      struct log_director *ld);
-void bd_free(struct bhyve_director *bd);
-uint64_t bd_getmsgcount(struct bhyve_director *bd);
-int bd_startvm(struct bhyve_director *bd, const char *name);
-int bd_resetfailvm(struct bhyve_director *bd, const char *name);
-int bd_stopvm(struct bhyve_director *bd, const char *name);
-struct bhyve_vm_manager_info *bd_getinfo(struct bhyve_director *bd);
+	return 0;
+}
 
-#endif /* __BHYVE_DIRECTOR_H__ */
+/*
+ * set new virtio-blk device
+ */
+int
+bpp_new_block_virtioblk(struct bhyve_parameters_block *block, const char *storage_path)
+{
+	return bpp_new_block_generic(block, storage_path, TYPE_BLOCK_VIRTIO);
+}
+
+/*
+ * set new nvme device
+ */
+int
+bpp_new_block_nvme(struct bhyve_parameters_block *block, const char *storage_path)
+{
+	return bpp_new_block_generic(block, storage_path, TYPE_BLOCK_NVME);
+}
+
+/*
+ * set new ahci hd device
+ */
+int
+bpp_new_block_ahcihd(struct bhyve_parameters_block *block, const char *storage_path)
+{
+	return bpp_new_block_generic(block, storage_path, TYPE_BLOCK_AHCI_HD);
+}
