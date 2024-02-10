@@ -78,8 +78,10 @@ bcmd_encodenvlist(struct nvlistitem_mapping *mapping, size_t mapping_count,
 	size_t counter = 0;
 	const char *strptr;
 	const char **pstrptr;
+	uint16_t *puint16 = 0;
 	uint64_t *puint64 = 0;
 	uint32_t *puint32 = 0;
+	bool *pbool = 0;
 
 	for (counter = 0; counter < mapping_count; counter++) {
 		switch (mapping[counter].value_type) {
@@ -102,6 +104,14 @@ bcmd_encodenvlist(struct nvlistitem_mapping *mapping, size_t mapping_count,
 		case UINT32:
 			puint32 = buffer + mapping[counter].offset;
 			nvlist_add_number(nvl, mapping[counter].varname, *puint32);
+			break;
+		case UINT16:
+			puint16 = buffer + mapping[counter].offset;
+			nvlist_add_number(nvl, mapping[counter].varname, *puint16);
+			break;
+		case BOOLEAN:
+			pbool = buffer + mapping[counter].offset;
+			nvlist_add_bool(nvl, mapping[counter].varname, *pbool);
 			break;
 		default:
 			errno = EOPNOTSUPP;
@@ -138,6 +148,8 @@ bcmd_decodenvlist(struct nvlistitem_mapping *mapping, size_t mapping_count,
 	size_t size = 0;
 	uint64_t *puint64;
 	uint32_t *puint32;
+	uint16_t *puint16;
+	bool *pbool = 0;
 
 	for (counter = 0; counter < mapping_count; counter++) {
 		switch (mapping[counter].value_type) {
@@ -184,6 +196,21 @@ bcmd_decodenvlist(struct nvlistitem_mapping *mapping, size_t mapping_count,
 			puint32 = (buffer + mapping[counter].offset);
 			/* TODO implement with atoll instead? */
 			*puint32 = nvlist_get_number(nvl, mapping[counter].varname);
+			break;
+		case UINT16:
+			if (!nvlist_exists_number(nvl, mapping[counter].varname))
+				continue;
+
+			puint16 = (buffer + mapping[counter].offset);
+			/* TODO implement with atoll instead? */
+			*puint16 = nvlist_get_number(nvl, mapping[counter].varname);
+			break;
+		case BOOLEAN:
+			if (!nvlist_exists_bool(nvl, mapping[counter].varname))
+				continue;
+
+			pbool = (buffer + mapping[counter].offset);
+			*pbool = nvlist_get_bool(nvl, mapping[counter].varname);
 			break;
 		default:
 			errno = EOPNOTSUPP;

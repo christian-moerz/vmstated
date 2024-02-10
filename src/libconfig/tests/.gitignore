@@ -1,5 +1,8 @@
 test_config_block
 test_config_check
 test_config_core
+test_file_memory
+test_output
+test_output_file
 test_string_list
 \#*

@@ -52,6 +52,8 @@ typedef enum {
 struct bhyve_parameters_comport {
 	char portname[BPC_NAME_MAX];
 	bool enabled;
+	/* device name to attach to, i.e. /dev/nmdb0 */
+	char backend[PATH_MAX];
 };
 
 struct bhyve_parameters_bootrom {
@@ -74,7 +76,12 @@ bpc_get_bootrom(const struct bhyve_parameters_core *bpc);
 int
 bpc_set_bootrom(struct bhyve_parameters_core *bpc,
 		const char *bootrom, bool with_vars, const char *varsfile);
-int bpc_enable_comport(struct bhyve_parameters_core *bpc, uint8_t comport, bool enabled);
+int
+bpc_enable_comport(struct bhyve_parameters_core *bpc,
+		   const char *portname, uint8_t comport, bool enabled);
+int
+bpc_set_comport_backend(struct bhyve_parameters_core *bpc,
+			uint8_t comport, const char *backend);
 
 struct bhyve_parameters_pcislot *bpp_new_hostbridge(bhyve_parameters_hostbridge_t hostbridge_type);
 struct bhyve_parameters_pcislot *bpp_new_xhci(bool tablet);
@@ -105,5 +112,32 @@ bpp_get_pciid(const struct bhyve_parameters_pcislot *bpp,
 	      uint8_t *function);
 
 const struct bhyve_parameters_parser_info *bpc_get_parsermapping();
+
+int
+bpc_set_cpulayout(struct bhyve_parameters_core *bpc,
+		  uint16_t numcpus, uint16_t sockets, uint16_t cores);
+int bpc_set_numcpus(struct bhyve_parameters_core *, uint16_t);
+int bpc_set_sockets(struct bhyve_parameters_core *, uint16_t);
+int bpc_set_cores(struct bhyve_parameters_core *, uint16_t);
+
+uint16_t bpc_get_numcpus (const struct bhyve_parameters_core *);
+uint16_t bpc_get_sockets (const struct bhyve_parameters_core *);
+uint16_t bpc_get_cores (const struct bhyve_parameters_core *);
+int
+bpc_set_memory(struct bhyve_parameters_core *bpc, uint32_t memory);
+uint32_t
+bpc_get_memory(const struct bhyve_parameters_core *bpc);
+int
+bpc_set_yieldonhlt(struct bhyve_parameters_core *bpc, bool yield);
+bool
+bpc_get_yieldonhlt(const struct bhyve_parameters_core *bpc);
+int
+bpc_set_generateacpi(struct bhyve_parameters_core *bpc, bool acpi_tables);
+bool
+bpc_get_generateacpi(const struct bhyve_parameters_core *bpc);
+bool
+bpc_get_wired(const struct bhyve_parameters_core *bpc);
+int
+bpc_set_wired(struct bhyve_parameters_core *bpc, bool wired);
 
 #endif				/* __CONFIG_CORE_H__ */

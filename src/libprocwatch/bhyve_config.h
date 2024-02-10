@@ -51,9 +51,28 @@ const char *bc_get_owner(const struct bhyve_configuration *);
 const char *bc_get_group(const struct bhyve_configuration *);
 const char *bc_get_description(const struct bhyve_configuration *);
 const char *bc_get_backingfile(const struct bhyve_configuration *);
-uint32_t bc_get_maxrestart(const struct bhyve_configuration *bc);
-time_t bc_get_maxrestarttime(const struct bhyve_configuration *bc);
-size_t bc_get_consolecount(const struct bhyve_configuration *bc);
+const char *bc_get_bootrom(const struct bhyve_configuration *);
+int         bc_set_generated_config(struct bhyve_configuration *bc,
+				    const char *generated_config);
+const char *bc_get_generated_config(const struct bhyve_configuration *);
+uint32_t    bc_get_maxrestart(const struct bhyve_configuration *bc);
+time_t      bc_get_maxrestarttime(const struct bhyve_configuration *bc);
+size_t      bc_get_consolecount(const struct bhyve_configuration *bc);
+uint32_t    bc_get_memory(const struct bhyve_configuration *bc);
+int         bc_set_numcpus(const struct bhyve_configuration *bc, uint16_t numcpus);
+uint16_t    bc_get_numcpus(const struct bhyve_configuration *bc);
+int         bc_set_sockets(const struct bhyve_configuration *bc, uint16_t sockets);
+uint16_t    bc_get_sockets(const struct bhyve_configuration *bc);
+int         bc_set_cores(const struct bhyve_configuration *bc, uint16_t cores);
+uint16_t    bc_get_cores(const struct bhyve_configuration *bc);
+const struct bhyve_configuration_console_list *
+            bc_get_consolelist(const struct bhyve_configuration *bc);
+bool
+bc_get_vmexithlt(const struct bhyve_configuration *bc);
+bool
+bc_get_wired(const struct bhyve_configuration *bc);
+bool
+bc_get_generateacpi(const struct bhyve_configuration *bc);
 
 struct bhyve_configuration_store *bcs_new(const char *searchpath);
 void bcs_free(struct bhyve_configuration_store *bcs);

@@ -45,6 +45,21 @@
 
 #include "parser_offsets.h"
 
+#include "../libutils/bhyve_utils.h"
+
+#define BPC_SETTER_FUNC(varname, vartype)		\
+	int \
+	bpc_set_##varname(struct bhyve_parameters_core *bpc, vartype varname) \
+	{ \
+		if (!bpc) {	\
+			errno = EINVAL;		\
+			return -1;		\
+		}				\
+		bpc->varname = varname;		\
+		return 0;			\
+	}
+
+
 struct bhyve_parameters_cdrom {
 };
 
@@ -199,7 +214,8 @@ bpc_get_comport(const struct bhyve_parameters_core *bpc, size_t comport)
  * enable or disable a comport
  */
 int
-bpc_enable_comport(struct bhyve_parameters_core *bpc, uint8_t comport, bool enabled)
+bpc_enable_comport(struct bhyve_parameters_core *bpc,
+		   const char *portname, uint8_t comport, bool enabled)
 {
 	if (comport > 3) {
 		errno = EDOM;
@@ -207,7 +223,24 @@ bpc_enable_comport(struct bhyve_parameters_core *bpc, uint8_t comport, bool enab
 	}
 
 	bpc->comport[comport].enabled = enabled;
-	snprintf(bpc->comport[comport].portname, BPC_NAME_MAX, "com%d", comport);
+	strncpy(bpc->comport[comport].portname, portname, BPC_NAME_MAX);
+
+	return 0;
+}
+
+/*
+ * set backend for comport
+ */
+int
+bpc_set_comport_backend(struct bhyve_parameters_core *bpc,
+			uint8_t comport, const char *backend)
+{
+	if (comport > 3) {
+		errno = EDOM;
+		return -1;
+	}
+
+	strncpy(bpc->comport[comport].backend, backend, PATH_MAX);
 
 	return 0;
 }
@@ -494,3 +527,140 @@ bpp_get_pciid(const struct bhyve_parameters_pcislot *bpp,
 
 	return 0;
 }
+
+/*
+ * set cpu config
+ */
+int
+bpc_set_cpulayout(struct bhyve_parameters_core *bpc,
+		  uint16_t numcpus, uint16_t sockets, uint16_t cores)
+{
+	if (!bpc) {
+		errno = EINVAL;
+		return -1;
+	}
+	
+	bpc->numcpus = numcpus;
+	bpc->sockets = sockets;
+	bpc->cores = cores;
+	return 0;
+}
+
+
+/*
+ * set memory
+ */
+int
+bpc_set_memory(struct bhyve_parameters_core *bpc, uint32_t memory)
+{
+	if (!bpc) {
+		errno = EINVAL;
+		return -1;
+	}
+	
+	bpc->memory = memory;
+	return 0;
+}
+
+/*
+ * get memory amount in megabytes
+ */
+uint32_t
+bpc_get_memory(const struct bhyve_parameters_core *bpc)
+{
+	if (!bpc) {
+		errno = EINVAL;
+		return -1;
+	}
+	return bpc->memory;
+}
+
+/*
+ * set yield on halt state
+ */
+int
+bpc_set_yieldonhlt(struct bhyve_parameters_core *bpc, bool yield)
+{
+	if (!bpc) {
+		errno = EINVAL;
+		return -1;
+	}
+
+	bpc->yield_on_hlt = yield;
+
+	return 0;
+}
+
+/*
+ * get yield on halt value
+ */
+bool
+bpc_get_yieldonhlt(const struct bhyve_parameters_core *bpc)
+{
+	if (!bpc) {
+		errno = EINVAL;
+		return -1;
+	}
+	return bpc->yield_on_hlt;
+}
+
+/*
+ * get wired flag
+ */
+bool
+bpc_get_wired(const struct bhyve_parameters_core *bpc)
+{
+	if (!bpc) {
+		errno = EINVAL;
+		return false;
+	}
+
+	return bpc->wire_memory;
+}
+
+/*
+ * set wired flag
+ */
+int
+bpc_set_wired(struct bhyve_parameters_core *bpc, bool wired)
+{
+	if (!bpc) {
+		errno = EINVAL;
+		return -1;
+	}
+
+	bpc->wire_memory = wired;
+	return 0;
+}
+
+/*
+ * set acpi table generation
+ */
+int
+bpc_set_generateacpi(struct bhyve_parameters_core *bpc, bool acpi_tables)
+{
+	if (!bpc) {
+		errno = EINVAL;
+		return -1;
+	}
+	bpc->generate_acpi_tables = acpi_tables;
+	return 0;
+}
+
+bool
+bpc_get_generateacpi(const struct bhyve_parameters_core *bpc)
+{
+	if (!bpc) {
+		errno = EINVAL;
+		return -1;
+	}
+	return bpc->generate_acpi_tables;
+}
+
+BPC_SETTER_FUNC(numcpus, uint16_t);
+BPC_SETTER_FUNC(sockets, uint16_t);
+BPC_SETTER_FUNC(cores, uint16_t);
+
+CREATE_GETTERFUNC_UINT16(bhyve_parameters_core, bpc, numcpus);
+CREATE_GETTERFUNC_UINT16(bhyve_parameters_core, bpc, sockets);
+CREATE_GETTERFUNC_UINT16(bhyve_parameters_core, bpc, cores);

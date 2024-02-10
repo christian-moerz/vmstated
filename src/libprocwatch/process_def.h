@@ -43,5 +43,6 @@ struct process_def *pd_fromconfig(const struct bhyve_configuration *bc);
 int pd_launch(struct process_def *pd, pid_t *pid);
 int pd_launch_redirected(struct process_def *pd, pid_t *pid,
 			 struct log_director_redirector *ldr);
+int pd_set_configfile(struct process_def *pd, const char *configfile);
 
 #endif /* __PROCESS_DEF_H__ */

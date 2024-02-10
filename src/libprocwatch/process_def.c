@@ -251,9 +251,31 @@ pd_fromconfig(const struct bhyve_configuration *bc)
 		free(pd);
 		return NULL;
 	}
-	strncpy(pd->procargs[2], bc_get_configfile(bc), PATH_MAX);
+	/*
+	 * if we have a generated config, we use that instead of the original one
+	 */
+	if (bc_get_generated_config(bc)) 
+		strncpy(pd->procargs[2], bc_get_generated_config(bc), PATH_MAX);
+	else 
+		strncpy(pd->procargs[2], bc_get_configfile(bc), PATH_MAX);
 
 	return pd;
+}
+
+/*
+ * Updates the config file path given to bhyve
+ */
+int
+pd_set_configfile(struct process_def *pd, const char *configfile)
+{
+	if (!pd || !configfile) {
+		errno = EINVAL;
+		return -1;
+	}
+
+	bzero(pd->procargs[2], PATH_MAX);
+	strncpy(pd->procargs[2], configfile, PATH_MAX);
+	return 0;
 }
 
 /*

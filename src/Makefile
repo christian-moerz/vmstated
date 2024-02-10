@@ -1,7 +1,7 @@
 # $FreeBSD
 
 SUBDIR= libconfig liblogging libutils libsocket libstate libcommand \
-	libprocwatch vmstated vmstatedctl
+	libprocwatch libtranslate vmstated vmstatedctl
 
 tags:
 	/bin/rm -f TAGS

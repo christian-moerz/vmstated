@@ -50,6 +50,7 @@
 
 #include "../libsocket/socket_handle.h"
 
+#include "config_generator.h"
 #include "subscriber.h"
 #include "vmstated_config.h"
 
@@ -105,6 +106,14 @@ vmstated_launch(struct vmstated_opts *opts,
 		ld_free(ld);
 		bcs_free(bcs);
 		err(errno, "Failed to construct bhyve director");
+	}
+
+	/* assign a new cgo */
+	if (bd_set_cgo(bd, &vmstated_cgo)) {
+		bd_free(bd);
+		ld_free(ld);
+		bcs_free(bcs);
+		err(errno, "Failed to prepare configuration generator");
 	}
 
 	do {
@@ -337,7 +346,6 @@ run_program(struct vmstated_opts *default_opts,
 {
 	int result = 0;
 
-	openlog("vmstated", LOG_PID, LOG_DAEMON);
 	syslog(LOG_INFO, "vmstated starting");
 
 	setup_sighandler();
@@ -378,6 +386,8 @@ main(int argc, char **argv)
 	struct bhyve_configuration_store *bcs = 0;
 	int result = 0;
 	
+	openlog("vmstated", LOG_PID, LOG_DAEMON);
+
 	strncpy(default_opts.configdir_path, "/usr/local/etc/vmstated", PATH_MAX);
 	strncpy(default_opts.pidfile_path, DEFAULTPATH_PIDFILE, PATH_MAX);
 	strncpy(default_opts.socket_path, DEFAULTPATH_SOCKET, PATH_MAX);
@@ -393,6 +403,8 @@ main(int argc, char **argv)
 	if (!(bcs = bcs_new(default_opts.configdir_path))) {
 		err(ENOMEM, "Failed to instantiate configuration store");
 	}
+
+	syslog(LOG_INFO, "Loading config data");
 
 	/* walk configuration directory */
 	if (bcs_walkdir(bcs)) {

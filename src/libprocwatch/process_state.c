@@ -691,6 +691,7 @@ psv_stop_or_reboot(struct process_state_vm *psv, bool reboot, int *exitcode)
 	}
 	
 	/* TODO missing property: timeout? */
+	/* TODO reboot not implemented yet */
 
 	return 0;		
 }
@@ -716,6 +717,7 @@ psv_stopvm(struct process_state_vm *psv, int *exitcode)
 int
 psv_rebootvm(struct process_state_vm *psv, int *exitcode)
 {
+	/* TODO needs testing (not implemented yet) */
 	return psv_stop_or_reboot(psv, true, exitcode);
 }
 
@@ -761,8 +763,10 @@ psv_withconfig(struct process_def_obj *pdo, const char *scriptpath)
 		free(psv);
 		return NULL;
 	}
-	
-	psv->sth = sth_new(process_transition_list, sizeof(process_transition_list)/sizeof(struct state_transition),
+
+	/* new transition handler, starting with INIT state */
+	psv->sth = sth_new(process_transition_list,
+			   sizeof(process_transition_list)/sizeof(struct state_transition),
 			   PS_STATE(INIT), psv);
 	if (!psv->sth) {
 		free(psv);
@@ -770,14 +774,30 @@ psv_withconfig(struct process_def_obj *pdo, const char *scriptpath)
 	}
 	psv->pdo = pdo;
 
-	if (scriptpath) {
-		size_t scriptlen = strlen(scriptpath);
-		psv->scriptpath = malloc(scriptlen+1);
-		strncpy(psv->scriptpath, scriptpath, scriptlen+1);
-	} else
+	if (scriptpath)
+		psv->scriptpath = strdup(scriptpath);
+	else
 		psv->scriptpath = NULL;
 	
 	return psv;
+}
+
+/*
+ * switch out config file to use
+ */
+int
+psv_set_configfile(struct process_state_vm *psv,
+		   const char *configfile)
+{
+	if (!psv) {
+		errno = EINVAL;
+		return -1;
+	}
+
+	if (psv->pdo && psv->pdo->funcs->set_configfile)
+		return psv->pdo->funcs->set_configfile(psv->pdo->ctx, configfile);
+
+	return -1;
 }
 
 /*

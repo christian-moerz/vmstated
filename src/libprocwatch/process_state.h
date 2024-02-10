@@ -94,5 +94,8 @@ struct log_director_redirector *psv_get_logredirector(struct process_state_vm *p
 int psv_resetfailure(struct process_state_vm *psv);
 
 const char *psv_state2string(bhyve_vmstate_t state);
+int
+psv_set_configfile(struct process_state_vm *psv,
+		   const char *configfile);
 
 #endif /* __PROCESS_STATE_H__ */

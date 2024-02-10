@@ -77,11 +77,11 @@ define an alternate path holding hook scripts instead of the default
 Specify the operating system of the virtual machine.
 .It osversion
 Specify the operating system version of the virtual machine.
-.It owner
+.It (owner)
 designate the name of the virtual machine's owner. This user may start
 and stop the virtual machine using
 .Xr vmstatedctl 1 .
-.It group
+.It (group)
 designate the name of the virtual machine's owning group. Any user in
 that group may start and stop the virtual machine using
 .Xr vmstatedctl 1 .
@@ -98,7 +98,45 @@ applied. For example, if maxrestart is set to 3 and maxrestarttime is
 set to 10, a virtual machine that attempts to restart 4 times within
 10 seconds will put into failure mode. If no value is set, this value
 is set to 30 by default.
+.It (bootrom)
+The path to the bootrom file to use, i.e.
+.Pa /usr/local/share/uefi-firmware/BHYVE_UEFI.fd
+.It generate_acpi_tables
+Equivalent to the bhyve_config option "acpi_tables"
+.It vmexit_on_halt
+Equivalent to the bhyve_config option "x86.vmexit_on_hlt"
+.It memory
+Amount of memory in megabytes to use for the virtual machine
+.It cpus
+The number of VCPUs to assign to the virtual machine
+.It sockets
+The number of VCPU sockets to apply
+.It cores
+The number of VCPU cores to apply
 .El
+.Pp
+Variables in brackets are parsed by
+.Nm
+but are not yet applied to virtual machine configurations. They will
+be integrated in a future version.
+.Pp
+Settings in a
+.Pa config
+file that modify virtual machine configuration are combined with those
+in the file referenced by "configfile";
+.Nm
+does this by appending the generated configuration to the file
+specified by "configfile". Generated settings thus override any
+predefined settings found in the "configfile" file.
+.Pp
+By default,
+.Nm
+takes the filename specified in variable "configfile" and appends
+".generated" as suffix to construct the filename for the combined
+configuration file of original bhyve_config file settings and those
+listed in the
+.Pa config
+file.
 .Ss Hook Scripts
 .Nm
 allows placement of hook scripts within a virtual machine's
@@ -153,7 +191,7 @@ log filenames are set to the virtual machine's name and the suffix
 .Pp
 Log files record stdout as well as stderr output.
 .Ss Failure Modes
-If a virtual machine fails to correctly start, i.e. either due to
+If a virtual machine fails to start correctly, i.e. either due to
 misconfiguration, disk issues or other problems making
 .Xr bhyve 8
 fail to complete the boot process,
@@ -164,6 +202,11 @@ within the last number of seconds set by value "maxrestarttime",
 .Nm
 will enter the virtual machine into failure mode and no longer attempt
 a restart.
+.Pp
+To restart a virtual machine that entered into failure mode, you first
+need to reset its state. You can do so by using
+.Xr vmstatedctl 1
+with argument "failreset".
 .Sh OPTIONS
 .Bl -tag -width 10n
 .It Fl c Ar configdir
@@ -229,7 +272,7 @@ bhyve -c 2 -m 4G -w -H \\
              -s 31,lpc -l com1,stdio \\
              -l bootrom,/usr/local/share/uefi-firmware/BHYVE_UEFI.fd \\
 	     -o config.dump=1 \\
-             uefivm > /usr/local/etc/vmstated/bsdvm/bhyve_config
+             bsdvm > /usr/local/etc/vmstated/bsdvm/bhyve_config
 .Ed
 .Pp
 Once the configuration file has been generated, make sure to remove
@@ -311,9 +354,20 @@ in the future.
 .Pp
 At the moment,
 .Nm
-must be started as root. As of January 2023, it is not making use of
+must be started as root. As of version 0.06, it is not making use of
 .Xr capsicum 4
 to limit its system interaction capabilities.
+.Pp
+Feature variables like "owner" and "group" can be defined in a config
+file but are not yet respected by
+.Nm
+when authorizing users to communicate with
+.Nm
+via its socket. By default
+.Nm 's
+socket is not world-writeable and thus requires root level privileges
+to communicate through the use of
+.Xr vmstatedctl 1 .
 .Pp
 With its initial release,
 .Nm
@@ -324,9 +378,10 @@ without first shutting down the virtual machines it started, those
 processes will become "orphaned" and will have to be shut down
 and cleaned up manually - as no hook scripts will be called.
 .Pp
-If a virtual machine enters into "failure" mode, it cannot yet be
-reset but requires a full restart of
+Configuration names are not yet checked for their uniqueness by
 .Nm .
+Hence, if you label two virtual machines with the same name, expect
+undefined behavior.
 .Pp
 Finally,
 .Nm

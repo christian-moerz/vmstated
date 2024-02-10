@@ -25,75 +25,94 @@
  * SUCH DAMAGE.
  */
 
+#include <sys/mman.h>
+#include <sys/queue.h>
+
+#include <errno.h>
+#include <fcntl.h>
+#include <limits.h>
+#include <stddef.h>
 #include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 
-#include "process_def.h"
-#include "process_def_object.h"
+#include "file_memory.h"
 
-struct process_def_funcs pd_funcs = {
-	.launch = (void*) pd_launch,
-	.launch_redirected = (int (*)(void *,
-				      pid_t *,
-				      struct log_director_redirector *)) pd_launch_redirected,
-	.set_configfile = (int (*)(void *, const char *)) pd_set_configfile,
-	.free = (void*) pd_free
+/*
+ * Copies contents of a file into memory buffer This is used for
+ * reading a bhyve config file to combine it with generated config
+ * output.
+ */
+struct file_memory {
+	char filename[PATH_MAX];
+	int filefd;
+	size_t filesize;
+	char *memory;
 };
 
-/*
- * construct a process_def_object from a process_def
- *
- * The process_def_obj assumes ownership of the provided process_def
- * and is therefore released when the process_def_obj is released.
- */
-struct process_def_obj *
-pdobj_frompd(struct process_def *pd)
+struct file_memory *
+fm_new(const char *filename)
 {
-	struct process_def_obj *pdo = malloc(sizeof(struct process_def_obj));
-	if (!pdo)
+	struct file_memory *fm = 0;
+	off_t offset = 0;
+
+	if (!filename) {
+		errno = EINVAL;
+		return NULL;
+	}
+
+	if (!(fm = malloc(sizeof(struct file_memory))))
 		return NULL;
 
-	pdo->ctx = pd;
-	pdo->funcs = &pd_funcs;
+	bzero(fm, sizeof(struct file_memory));
+	strncpy(fm->filename, filename, PATH_MAX);
 
-	return pdo;
-}
-
-/*
- * constructs an object directly out of a bhyve_configuration
- */
-struct process_def_obj *
-pdobj_fromconfig(const struct bhyve_configuration *bc)
-{
-	struct process_def *pd = pd_fromconfig(bc);
-
-	if (!pd)
+	if ((fm->filefd = open(filename, O_RDONLY)) < 0) {
+		free(fm->filename);
+		free(fm);
 		return NULL;
+	}
 
-	return pdobj_frompd(pd);
+	if ((offset = lseek(fm->filefd, 0, SEEK_END)) < 0) {
+		close(fm->filefd);
+		free(fm->filename);
+		free(fm);
+		return NULL;
+	}
+	fm->filesize = offset;
+
+	fm->memory = mmap(NULL, fm->filesize, PROT_READ, MAP_PRIVATE,
+			  fm->filefd, 0);
+	if (MAP_FAILED == fm->memory) {
+		close(fm->filefd);
+		free(fm->filename);
+		free(fm);
+		return NULL;
+	}
+	
+	return fm;
 }
 
 /*
- * Set configuration file
+ * get file contents
  */
-int
-pdobj_set_configfile(struct process_def_obj *pdo,
-		     const char *configfile)
+const char *
+fm_get_memory(const struct file_memory *fm)
 {
-	return pd_set_configfile(pdo->ctx, configfile);
+	return fm->memory;
 }
 
 /*
- * release a process_def_obj and its context, if free is pointing to a
- * valid release function
+ * free previously allocated file memory
  */
 void
-pdobj_free(struct process_def_obj *pdo)
+fm_free(struct file_memory *fm)
 {
-	if (!pdo)
+	if (!fm)
 		return;
-	if (pdo->funcs->free)
-		pdo->funcs->free(pdo->ctx);
-	
-	free(pdo);
+
+	munmap(fm->memory, fm->filesize);
+
+	close(fm->filefd);
+	free(fm);
 }

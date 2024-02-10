@@ -121,6 +121,7 @@ bup_generic_parsefromucl(void *ctx, const ucl_object_t *confobj,
 	char **pstrptr;
 	const char *keyval = NULL;
 	size_t size = 0;
+	uint16_t *puint16 = 0;
 	uint64_t *puint64 = 0;
 	uint32_t *puint32 = 0;
 	bool *pbool = 0;
@@ -181,6 +182,10 @@ bup_generic_parsefromucl(void *ctx, const ucl_object_t *confobj,
 		case UINT32:
 			puint32 = ctx + mapping->offset;
 			*puint32 = ucl_object_toint(cur);
+			break;
+		case UINT16:
+			puint16 = ctx + mapping->offset;
+			*puint16 = ucl_object_toint(cur);
 			break;
 		case BOOLEAN:
 			pbool = ctx + mapping->offset;

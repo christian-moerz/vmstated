@@ -32,6 +32,7 @@
 
 #include <err.h>
 #include <errno.h>
+#include <limits.h>
 #include <pthread.h>
 #include <signal.h>
 #include <stdlib.h>
@@ -46,6 +47,7 @@
 #include "bhyve_director.h"
 #include "bhyve_director_errors.h"
 #include "bhyve_messagesub_object.h"
+#include "config_generator_object.h"
 #include "process_def.h"
 #include "process_state.h"
 #include "process_state_errors.h"
@@ -106,6 +108,7 @@ struct bhyve_director {
 	struct bhyve_configuration_store_obj *store_obj;
 	struct reboot_manager_object rmo;
 	struct log_director *ld;
+	struct config_generator_object *cgo;
 
 	SLIST_HEAD(, bhyve_watched_vm) statelist;
 	STAILQ_HEAD(, bhyve_watched_vm) rebootlist;
@@ -239,6 +242,37 @@ bwv_countrestarts_since(struct bhyve_watched_vm *bwv, time_t deadline)
 	} while (NULL != (bst = STAILQ_NEXT(bst, entries)));
 
 	return counter;		
+}
+
+/*
+ * Generate a merged configuration, by using a generator if it is available.
+ */
+int
+bwv_generate_config(struct bhyve_watched_vm *bwv,
+		    struct config_generator_object *cgo)
+{
+	if (!bwv)
+		return -1;
+
+	if (!cgo) {
+		return 0;
+	}
+
+	char generated_name[PATH_MAX] = {0};
+
+	/* TODO use generated name from bhyve_config if set */
+
+	snprintf(generated_name, PATH_MAX, "%s.generated",
+		 bc_get_configfile(bwv->config));
+	syslog(LOG_INFO, "Generating configuratino for vm \"%s\" in file " \
+	       "\"%s\"", bc_get_name(bwv->config), generated_name);
+	
+	if (cgo->generate_config_file)
+		if (!cgo->generate_config_file(bwv->config, generated_name)) {
+			return psv_set_configfile(bwv->state, generated_name);
+		}
+	
+	return -1;
 }
 
 /*
@@ -452,6 +486,13 @@ bd_startvm(struct bhyve_director *bd, const char *name)
 		return BD_ERR_VMSTATEISFAIL;
 
 	bwv_timestamp(bwv);
+
+	/* attempt re-generating bhyve config, if we have a generator */
+	if (bwv_generate_config(bwv, bd->cgo)) {
+		/* generation failed */
+		psv_failurestate(bwv->state);
+		return BD_ERR_VMCONFGENFAIL;
+	}
 
 	/* launch vm */
 	if (0 != (result = psv_startvm(bwv->state, &pid, bwv->ldr))) {
@@ -1002,6 +1043,23 @@ bd_getinfo(struct bhyve_director *bd)
 	bvmmi = bvmmi_new(ptrarray, counter, bd_getmsgcount(bd));
 	
 	return bvmmi;
+}
+
+/*
+ * set config generator object
+ */
+int
+bd_set_cgo(struct bhyve_director *bd,
+	   struct config_generator_object *cgo)
+{
+	if (!bd) {
+		errno = EINVAL;
+		return -1;
+	}
+
+	bd->cgo = cgo;
+
+	return 0;
 }
 
 /*

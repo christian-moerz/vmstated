@@ -85,7 +85,6 @@ vmsms_new(struct socket_handle *sh)
 	bzero(vmsms, sizeof(struct vmstated_message_subscriber));
 	vmsms->sh = sh;
 	vmsms->bmo.obj = vmsms;
-	syslog(LOG_ERR, "ptr is %p", vmsms->bmo.obj);
 	vmsms->bmo.subscribe_ondata = vmsms_subscribe_ondata;
 
 	/* we now subscribe vmsms to socket handle */

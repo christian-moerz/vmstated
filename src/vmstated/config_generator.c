@@ -25,75 +25,77 @@
  * SUCH DAMAGE.
  */
 
+#include <errno.h>
+#include <fcntl.h>
+#include <limits.h>
+#include <pthread.h>
+#include <signal.h>
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#include <sysexits.h>
+#include <syslog.h>
 #include <unistd.h>
 
-#include "process_def.h"
-#include "process_def_object.h"
+#include "../libconfig/config_core.h"
+#include "../libconfig/output_bhyve_core.h"
+#include "../libprocwatch/config_generator_object.h"
+#include "../libtranslate/param_translate_core.h"
 
-struct process_def_funcs pd_funcs = {
-	.launch = (void*) pd_launch,
-	.launch_redirected = (int (*)(void *,
-				      pid_t *,
-				      struct log_director_redirector *)) pd_launch_redirected,
-	.set_configfile = (int (*)(void *, const char *)) pd_set_configfile,
-	.free = (void*) pd_free
+#include "config_generator.h"
+
+int
+vmstated_generate_config_file(const struct bhyve_configuration *bc,
+			      const char *filename);
+
+/*
+ * config generator definition
+ */
+struct config_generator_object vmstated_cgo = {
+	.generate_config_file = vmstated_generate_config_file
 };
 
 /*
- * construct a process_def_object from a process_def
- *
- * The process_def_obj assumes ownership of the provided process_def
- * and is therefore released when the process_def_obj is released.
- */
-struct process_def_obj *
-pdobj_frompd(struct process_def *pd)
-{
-	struct process_def_obj *pdo = malloc(sizeof(struct process_def_obj));
-	if (!pdo)
-		return NULL;
-
-	pdo->ctx = pd;
-	pdo->funcs = &pd_funcs;
-
-	return pdo;
-}
-
-/*
- * constructs an object directly out of a bhyve_configuration
- */
-struct process_def_obj *
-pdobj_fromconfig(const struct bhyve_configuration *bc)
-{
-	struct process_def *pd = pd_fromconfig(bc);
-
-	if (!pd)
-		return NULL;
-
-	return pdobj_frompd(pd);
-}
-
-/*
- * Set configuration file
+ * Generates configuration merged from bhyve_configuration structure
+ * and a preexisting bhyve_config file
  */
 int
-pdobj_set_configfile(struct process_def_obj *pdo,
-		     const char *configfile)
+vmstated_generate_config_file(const struct bhyve_configuration *bc,
+			      const char *filename)
 {
-	return pd_set_configfile(pdo->ctx, configfile);
-}
+	struct param_translate_core *ptc = 0;
+	const struct bhyve_parameters_core *bpc = 0;
+	struct output_bhyve_core *obc = 0;
+	int result = 0;
 
-/*
- * release a process_def_obj and its context, if free is pointing to a
- * valid release function
- */
-void
-pdobj_free(struct process_def_obj *pdo)
-{
-	if (!pdo)
-		return;
-	if (pdo->funcs->free)
-		pdo->funcs->free(pdo->ctx);
-	
-	free(pdo);
+	if (!(ptc = ptc_new(bc)))
+		return -1;
+
+	do {
+		if (ptc_translate(ptc)) {
+			result = -1;
+			break;
+		}
+
+		/* get set of core parameters after translation */
+		if (!(bpc = ptc_get_parameters(ptc))) {
+			result = -1;
+			break;
+		}
+
+		if (!(obc = obc_new(filename, bpc))) {
+			result = -1;
+			break;
+		}
+
+		result = obc_combine_with(obc, bc_get_configfile(bc));
+			
+		obc_free(obc);
+	} while(0);
+
+	ptc_free(ptc);
+
+	return result;
 }

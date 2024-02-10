@@ -40,5 +40,6 @@
 #define BD_ERR_TRANSITCHFAIL 166 /* failed to transition to new state */
 #define BD_ERR_VMSTARTDIEDIM 165 /* vm started but immediately died */
 #define BD_ERR_VMSTATENOFAIL 164 /* vm is not in failed state */
+#define BD_ERR_VMCONFGENFAIL 163 /* failed to generate vm config */
 
 #endif /* __BHYVE_DIRECTOR_ERRORS_H__ */

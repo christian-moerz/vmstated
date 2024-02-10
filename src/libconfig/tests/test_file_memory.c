@@ -25,28 +25,55 @@
  * SUCH DAMAGE.
  */
 
-#ifndef __BHYVE_DIRECTOR_H__
-#define __BHYVE_DIRECTOR_H__
+#include <sys/stat.h>
 
-#include "bhyve_config_object.h"
-#include "bhyve_messagesub_object.h"
-#include "config_generator_object.h"
+#include <atf-c.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <pthread.h>
+#include <stdbool.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
-#include "../liblogging/log_director.h"
+#include "../file_memory.h"
 
-struct bhyve_director;
+ATF_TC(tc_fm_readcompare);
+ATF_TC_HEAD(tc_fm_readcompare, tc)
+{
+	unlink("testfile_text");
+}
+ATF_TC_BODY(tc_fm_readcompare, tc)
+{
+	int filefd = 0;
+	const char *teststring = "This is a test";
+	struct file_memory *fm = 0;
 
-int bd_subscribe_commands(struct bhyve_director *bd, struct bhyve_messagesub_obj *bmo);
-struct bhyve_director *bd_new(struct bhyve_configuration_store_obj *bcso,
-			      struct log_director *ld);
-void bd_free(struct bhyve_director *bd);
-uint64_t bd_getmsgcount(struct bhyve_director *bd);
-int bd_startvm(struct bhyve_director *bd, const char *name);
-int bd_resetfailvm(struct bhyve_director *bd, const char *name);
-int bd_stopvm(struct bhyve_director *bd, const char *name);
-struct bhyve_vm_manager_info *bd_getinfo(struct bhyve_director *bd);
-int
-bd_set_cgo(struct bhyve_director *bd,
-	   struct config_generator_object *cgo);
+	ATF_REQUIRE((filefd = open("testfile_text", O_RDWR | O_CREAT )) > 0);
 
-#endif /* __BHYVE_DIRECTOR_H__ */
+	ATF_REQUIRE_EQ(0, fchmod(filefd, S_IRUSR | S_IWUSR));
+
+	ATF_REQUIRE(strlen(teststring) ==
+		    write(filefd, teststring, strlen(teststring)));
+
+	ATF_REQUIRE_EQ(0, close(filefd));
+
+	fm = fm_new("testfile_text");
+	printf("errno: %d\n", errno);
+	ATF_REQUIRE(0 != fm);
+
+	printf("memory content: \"%s\"", fm_get_memory(fm));
+
+	ATF_REQUIRE_EQ(0, strcmp(fm_get_memory(fm), teststring));
+
+	fm_free(fm);
+	
+	unlink("testfile_text");
+}
+
+ATF_TP_ADD_TCS(testplan)
+{
+	ATF_TP_ADD_TC(testplan, tc_fm_readcompare);
+
+	return atf_no_error();
+}

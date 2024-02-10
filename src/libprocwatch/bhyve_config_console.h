@@ -46,5 +46,10 @@ size_t bccl_count(struct bhyve_configuration_console_list *bccl);
 int
 bccl_add(struct bhyve_configuration_console_list *bccl,
 	 struct bhyve_configuration_console *bcc);
+const struct bhyve_configuration_console *
+bccl_get_consolebyidx(const struct bhyve_configuration_console_list *bccl, size_t idx);
+
+const char *bcc_get_name(const struct bhyve_configuration_console *);
+const char *bcc_get_backend(const struct bhyve_configuration_console *);
 
 #endif /* __BHYVE_CONFIG_CONSOLE_H__ */

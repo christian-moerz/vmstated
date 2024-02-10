@@ -59,6 +59,10 @@ struct bhyve_configuration {
 
 	/* console configuration options */
 	struct bhyve_configuration_console_list *consoles;
+
+	bool autostart;
+	/* a bootrom file */
+	char *bootrom;
 };
 
 struct bhyve_configuration *

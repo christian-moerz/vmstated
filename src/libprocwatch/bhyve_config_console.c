@@ -37,6 +37,7 @@
 
 #include "bhyve_config_console.h"
 #include "../libcommand/nvlist_mapping.h"
+#include "../libutils/bhyve_utils.h"
 
 /*
  * represents a console configuration
@@ -44,6 +45,7 @@
 struct bhyve_configuration_console {
 	char *name;
 	bool enabled;
+	char *backend;
 
 	LIST_ENTRY(bhyve_configuration_console) entries;
 };
@@ -68,6 +70,12 @@ struct nvlistitem_mapping bc_console2config[] = {
 		.value_type = BOOLEAN,
 		.size = sizeof(bool),
 		.varname = "enabled"
+	},
+	{
+		.offset = offsetof(struct bhyve_configuration_console, backend),
+		.value_type = DYNAMICSTRING,
+		.size = sizeof(char*),
+		.varname = "backend"
 	}
 };
 
@@ -179,6 +187,29 @@ bccl_add(struct bhyve_configuration_console_list *bccl,
 }
 
 /*
+ * get a console from the listing
+ */
+const struct bhyve_configuration_console *
+bccl_get_consolebyidx(const struct bhyve_configuration_console_list *bccl, size_t idx)
+{
+	size_t counter = 0;
+	struct bhyve_configuration_console *bcc = 0;
+
+	if (idx > 4) {
+		errno = EDOM;
+		return NULL;
+	}
+
+	LIST_FOREACH(bcc, &bccl->consoles, entries) {
+		if (counter == idx)
+			return bcc;
+		counter++;
+	}
+
+	return NULL;
+}
+
+/*
  * get number of consoles in the list
  */
 size_t
@@ -218,3 +249,6 @@ bccl_free(struct bhyve_configuration_console_list *bccl)
 
 	free(bccl);
 }
+
+CREATE_GETTERFUNC_STR(bhyve_configuration_console, bcc, name);
+CREATE_GETTERFUNC_STR(bhyve_configuration_console, bcc, backend);

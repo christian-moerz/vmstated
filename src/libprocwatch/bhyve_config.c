@@ -80,11 +80,29 @@ struct bhyve_configuration {
 	/* console configuration options */
 	struct bhyve_configuration_console_list *consoles;
 
+	bool autostart;
+	/* a bootrom file */
+	char *bootrom;
+
+	/* vm memory setting in megabytes */
+	uint32_t memory;
+	/* cpu configuration */
+	uint16_t numcpus;
+	uint16_t sockets;
+	uint16_t cores;
+
 	/* transient cached values */
 	uint32_t *uid;
 	uint32_t *gid;
 	/* stores the filename, which created this instance */
 	char *backing_filepath;
+	/* stores the filename of the generated config */
+	char *generated_config;
+
+	/* core config variables */
+	bool generate_acpi_tables;
+	bool wire_memory;
+	bool vmexit_on_halt;
 	
 	LIST_ENTRY(bhyve_configuration) entries;
 };
@@ -153,6 +171,60 @@ struct nvlistitem_mapping bc_nvlist2config[] = {
 		.value_type = UINT64,
 		.size = sizeof(time_t),
 		.varname = "maxrestarttime"
+	},
+	{ /* TODO implement feature */
+		.offset = offsetof(struct bhyve_configuration, autostart),
+		.value_type = BOOLEAN,
+		.size = sizeof(bool),
+		.varname = "autostart"
+	},
+	{
+		.offset = offsetof(struct bhyve_configuration, bootrom),
+		.value_type = DYNAMICSTRING,
+		.size = sizeof(char *),
+		.varname = "bootrom"
+	},
+	{
+		.offset = offsetof(struct bhyve_configuration, memory),
+		.value_type = UINT32,
+		.size = sizeof(uint32_t),
+		.varname = "memory"
+	},
+	{
+		.offset = offsetof(struct bhyve_configuration, numcpus),
+		.value_type = UINT16,
+		.size = sizeof(uint16_t),
+		.varname = "numcpus"
+	},
+	{
+		.offset = offsetof(struct bhyve_configuration, sockets),
+		.value_type = UINT16,
+		.size = sizeof(uint16_t),
+		.varname = "sockets"
+	},
+	{
+		.offset = offsetof(struct bhyve_configuration, cores),
+		.value_type = DYNAMICSTRING,
+		.size = sizeof(char *),
+		.varname = "cores"
+	},
+	{
+		.offset = offsetof(struct bhyve_configuration, generate_acpi_tables),
+		.value_type = BOOLEAN,
+		.size = sizeof(bool),
+		.varname = "generate_acpi_tables"
+	},
+	{
+		.offset = offsetof(struct bhyve_configuration, wire_memory),
+		.value_type = BOOLEAN,
+		.size = sizeof(bool),
+		.varname = "wire_memory"
+	},
+	{
+		.offset = offsetof(struct bhyve_configuration, vmexit_on_halt),
+		.value_type = BOOLEAN,
+		.size = sizeof(bool),
+		.varname = "vmexit_on_halt"
 	}
 };
 
@@ -448,6 +520,7 @@ bc_free(struct bhyve_configuration *bc)
 	free(bc->gid);
 
 	free(bc->backing_filepath);
+	free(bc->generated_config);
 	
 	free(bc);
 }
@@ -514,17 +587,29 @@ bcs_parseucl(struct bhyve_configuration_store *bcs, const char *configfile)
 	struct bhyve_configuration *bc;
 	size_t pathlen = strlen(configfile);
 
-	uclp = ucl_parser_new(UCL_PARSER_KEY_LOWERCASE);
-	if (!uclp)
-		return -1;
+	syslog(LOG_INFO, "Parsing UCL config file \"%s\"", configfile);
 
-	if (!ucl_parser_add_file(uclp, configfile))
+	uclp = ucl_parser_new(UCL_PARSER_KEY_LOWERCASE);
+	if (!uclp) {
+		syslog(LOG_ERR, "Failed to construct UCL parser");
 		return -1;
+	}
+
+	if (!ucl_parser_add_file(uclp, configfile)) {
+		if (ucl_parser_get_error(uclp)) {
+			syslog(LOG_ERR, "%s",
+			       ucl_parser_get_error(uclp));
+		}
+		syslog(LOG_ERR, "Failed to parse \"%s\"", configfile);
+		return -1;
+	}
 
 	root = ucl_parser_get_object(uclp);
 	do {
-		if (!root)
+		if (!root) {
+			syslog(LOG_WARNING, "No config node found in \"%s\"", configfile);
 			break;
+		}
 
 		while ((cur = ucl_iterate_object(root, &it, true))) {
 			configname = ucl_object_key(cur);
@@ -539,20 +624,28 @@ bcs_parseucl(struct bhyve_configuration_store *bcs, const char *configfile)
 			/* put configname into name as default */
 			strncpy(bc->name, configname, sizeof(bc->name));
 			
-			if (bc_parsefromucl(bc, cur))
+			if (bc_parsefromucl(bc, cur)) {
+				syslog(LOG_WARNING, "Failed to parse \"%s\"", configfile);
 				break;
+			}
 
 			/* remember file name */
-			bc->backing_filepath = malloc(pathlen+1);
+			bc->backing_filepath = strdup(configfile);
 			if (!bc->backing_filepath) {
 				bc_free(bc);
 				break;
 			}
-			strncpy(bc->backing_filepath, configfile, pathlen+1);
 			
 			LIST_INSERT_HEAD(&bcs->configs, bc, entries);
 		}
 	} while (0);
+
+	syslog(LOG_INFO, "Parsing completed for \"%s\"", configfile);
+
+	if (ucl_parser_get_error(uclp)) {
+		syslog(LOG_ERR, "%s",
+		       ucl_parser_get_error(uclp));
+	}
 
 	ucl_parser_free(uclp);
 	ucl_object_unref(root);
@@ -581,6 +674,7 @@ bcs_parseconfdir(struct bhyve_configuration_store *bcs, const char *path)
 		return -1;
 
 	snprintf(configpath, configlen, "%s/%s", path, configname);
+	syslog(LOG_INFO, "Checking for config at \"%s\"", configpath);
 
 	result = bcs_parseucl(bcs, configpath);
 
@@ -608,6 +702,9 @@ bcs_walkdir(struct bhyve_configuration_store *bcs)
 	int result = 0;
 	bool found_one = false;
 
+	syslog(LOG_INFO, "Checking configuration dir \"%s\" for config files",
+	       bcs->searchpath);
+
 	if (NULL != (d = opendir(bcs->searchpath))) {
 		while (1) {
 			/* failed to open directory */
@@ -630,6 +727,8 @@ bcs_walkdir(struct bhyve_configuration_store *bcs)
 					break;
 				}
 				snprintf(subpath, maxbuf, "%s/%s", bcs->searchpath, de->d_name);
+				syslog(LOG_INFO, "Looking for config in \"%s\"",
+				       subpath);
 				if (!bcs_parseconfdir(bcs, subpath)) {
 					found_one = true;
 				} else {
@@ -645,8 +744,10 @@ bcs_walkdir(struct bhyve_configuration_store *bcs)
 
 	if (found_one)
 		result = 0;
-	else
+	else {
+		errno = ENOENT;
 		result = -1;
+	}
 
 	if (!d) {
 		/* we failed to access the directory */
@@ -687,6 +788,8 @@ CREATE_GETTERFUNC_STR(bhyve_configuration, bc, osversion);
 CREATE_GETTERFUNC_STR(bhyve_configuration, bc, owner);
 CREATE_GETTERFUNC_STR(bhyve_configuration, bc, group);
 CREATE_GETTERFUNC_STR(bhyve_configuration, bc, description);
+CREATE_GETTERFUNC_STR(bhyve_configuration, bc, bootrom);
+CREATE_GETTERFUNC_STR(bhyve_configuration, bc, generated_config);
 
 /*
  * get number of consoles
@@ -697,10 +800,59 @@ bc_get_consolecount(const struct bhyve_configuration *bc)
 	return bccl_count(bc->consoles);
 }
 
+/*
+ * get console list
+ */
+const struct bhyve_configuration_console_list *
+bc_get_consolelist(const struct bhyve_configuration *bc)
+{
+	return bc->consoles;
+}
+
+/*
+ * get maximum restart count before failure state is assumed
+ * when it happens within maxrestarttime seconds
+ */
 uint32_t
 bc_get_maxrestart(const struct bhyve_configuration *bc)
 {
 	return bc->maxrestart;
+}
+
+/*
+ * get number of cpus
+ */
+uint16_t
+bc_get_numcpus(const struct bhyve_configuration *bc)
+{
+	return bc->numcpus;
+}
+
+/*
+ * get number of sockets
+ */
+uint16_t
+bc_get_sockets(const struct bhyve_configuration *bc)
+{
+	return bc->sockets;
+}
+
+/*
+ * get number of cores
+ */
+uint16_t
+bc_get_cores(const struct bhyve_configuration *bc)
+{
+	return bc->cores;
+}
+
+/*
+ * get memory amount in megabytes
+ */
+uint32_t
+bc_get_memory(const struct bhyve_configuration *bc)
+{
+	return bc->memory;
 }
 
 time_t
@@ -719,4 +871,70 @@ bc_get_backingfile(const struct bhyve_configuration *bc)
 		return NULL;
 
 	return bc->backing_filepath;
+}
+
+/*
+ * store the path to the generated config file
+ */
+int
+bc_set_generated_config(struct bhyve_configuration *bc,
+			const char *generated_config)
+{
+	if (!bc) {
+		errno = EINVAL;
+		return -1;
+	}
+
+	if (!generated_config) {
+		free(bc->generated_config);
+		bc->generated_config = NULL;
+		return 0;
+	}
+
+	if (!(bc->generated_config = strdup(generated_config)))
+		return -1;
+	
+	return 0;
+}
+
+/*
+ * get vmexit on hlt flag
+ */
+bool
+bc_get_vmexithlt(const struct bhyve_configuration *bc)
+{
+	if (!bc) {
+		errno = EINVAL;
+		return false;
+	}
+
+	return bc->vmexit_on_halt;
+}
+
+/*
+ * get memory wired flag
+ */
+bool
+bc_get_wired(const struct bhyve_configuration *bc)
+{
+	if (!bc) {
+		errno = EINVAL;
+		return false;
+	}
+
+	return bc->wire_memory;
+}
+
+/*
+ * get generate acpi tables flag
+ */
+bool
+bc_get_generateacpi(const struct bhyve_configuration *bc)
+{
+	if (!bc) {
+		errno = EINVAL;
+		return false;
+	}
+
+	return bc->generate_acpi_tables;
 }

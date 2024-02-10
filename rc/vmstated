@@ -1,5 +1,10 @@
 #!/bin/sh 
 
+# PROVIDE: vmstated
+# REQUIRE: DAEMON netwait
+# BEFORE:  LOGIN 
+# KEYWORD: shutdown
+
 . /etc/rc.subr 
 
 name="vmstated"

@@ -33,6 +33,7 @@ struct parser_mapping {
 	enum {
 		FIXEDSTRING,
 		DYNAMICSTRING,
+		UINT16,
 		UINT32,
 		UINT64,
 		BOOLEAN

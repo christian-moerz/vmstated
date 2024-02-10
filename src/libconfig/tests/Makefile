@@ -5,6 +5,6 @@ PIE_SUFFIX=	_pie
 STRIP=
 
 ATF_TESTS_C=	test_config_block test_config_check test_config_core \
-		test_string_list
+		test_file_memory test_output test_string_list
 
 .include <bsd.test.mk>

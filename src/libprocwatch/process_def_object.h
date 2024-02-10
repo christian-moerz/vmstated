@@ -40,6 +40,8 @@ struct process_def_funcs {
 	int (*launch)(void *ctx, pid_t *pid);
 	/* launch process definition with redirection */
 	int (*launch_redirected)(void *ctx, pid_t *pid, struct log_director_redirector *ldr);
+	/* update configuration file to use when executing bhyve */
+	int (*set_configfile)(void *ctx, const char *configfile);
 	/* release context */
 	void (*free)(void *ctx);
 };
