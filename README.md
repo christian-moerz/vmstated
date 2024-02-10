@@ -2,16 +2,24 @@
 
 `vmstated` is a very simple bhyve virtual machine manager for FreeBSD.
 
-### How to compile
+### How to install
 
-Eventually, `vmstated` will be released via the regular ports channel; until then,
-one can run the following commands:
+`vmstated` can be installed via regular ports ([sysutils/vmstated](https://www.freshports.org/sysutils/vmstated/));
+however, the version on Github is usually a bit ahead feature and bug-fixing wise.
+
+To install from Github
 
 ```
 git clone https://github.com/christian-moerz/vmstated
 cd vmstated/port
 make package
-pkg install work/pkg/vmstated-0.01.pkg
+pkg install work/pkg/vmstated-0.06.pkg
+```
+
+To install from ports, open a terminal and run
+
+```
+pkg install vmstated
 ```
 
 To uninstall vmstated, use the usual pkg command
