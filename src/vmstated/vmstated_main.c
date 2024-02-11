@@ -376,6 +376,32 @@ run_program(struct vmstated_opts *default_opts,
 }
 
 /*
+ * check that we have a working log directory
+ */
+int
+check_logdir(struct vmstated_opts *default_opts)
+{
+	struct stat ds = {0};
+	int result = 0;
+
+	if ((result = stat(default_opts->log_path, &ds) < 0)) {
+		if (ENOENT == errno) {
+			return mkdir(default_opts->log_path,S_IRWXU | S_IRWXG);
+		}
+		
+		return -1;
+	}
+
+	if (!S_ISDIR(ds.st_mode)) {
+		syslog(LOG_ERR, "error: log path does not point to a directory");
+		printf("vmstated error: Log path does not point to a directory\n");
+		exit(EX_CONFIG);
+	}
+
+	return 0;
+}
+
+/*
  * program entry point
  */
 int
@@ -396,6 +422,9 @@ main(int argc, char **argv)
 	if (handle_opts(argc, argv, &default_opts))
 		err(errno, "Failed to handle program arguments");
 
+	if (check_logdir(&default_opts))
+		err(errno, "Failed to configure log directory");
+	
 	if (check_already_running(&default_opts)) {
 		err(errno, "Failed to check whether program is already running");
 	}

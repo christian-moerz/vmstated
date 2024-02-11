@@ -471,7 +471,7 @@ bd_startvm(struct bhyve_director *bd, const char *name)
 
 	if (!bwv) {
 		errno = ENOENT;
-		return -1;
+		return BD_ERR_UNKNOWNVMNAME;
 	}
 
 	/* if we exceed restart count in max restart time */
@@ -936,6 +936,10 @@ bd_recv_ondata(void *ctx, uid_t uid, pid_t pid, const char *cmd,
 			syslog(LOG_INFO, "bd_resetfailvm result = %d", result);
 		}
 	}
+
+	if ((BD_ERR_UNKNOWNVMNAME == result) && (ENOENT == errno)) {
+		bmr->short_reply(bmr->ctx, "unknown vm");
+	}	
 	
 	/* free memory again */
 	bcmd_freestatic(&bcmd);

@@ -383,6 +383,21 @@ sh_reply_genericmsg(struct socket_handle *sh, struct socket_connection *shc, uin
 }
 
 /*
+ * reply a generic message
+ */
+int
+sh_reply_shortmsg(struct socket_handle *sh, struct socket_connection *shc, uint64_t errcode,
+	const char *msg)
+{
+	char buffer[SHC_MAXTRANSPORTDATA] = {0};
+
+	snprintf(buffer, SHC_MAXTRANSPORTDATA, "%04ld: %s",
+		 errcode,
+		 msg);
+	return sh_reply_msg(sh, shc, errcode, buffer);
+}
+
+/*
  * call listeners and send reply to client
  */
 int
@@ -710,10 +725,20 @@ sh_accept_thread(void *data)
 				 * whether to send a generic response or actual blob data
 				 */
 				if (!src_has_reply(shc->src)) {
-					if (sh_reply_genericmsg(sh, shc, result)) {
-						/* TODO log error instead */
-						err(SH_ERR_REPLYMESGFAIL,
-						    "Failed to reply call message");
+					if (src_has_short_reply(shc->src)) {
+						/* transmit short reply instead */
+						if (sh_reply_shortmsg(sh, shc, result,
+								      src_get_short_reply(shc->src))) {
+							/* TODO log error instead */
+							err(SH_ERR_REPLYMESGFAIL,
+							    "Failed to reply call message");
+						}
+					} else {
+						if (sh_reply_genericmsg(sh, shc, result)) {
+							/* TODO log error instead */
+							err(SH_ERR_REPLYMESGFAIL,
+							    "Failed to reply call message");
+						}
 					}
 				} else {
 					/* TODO handle long replies */
