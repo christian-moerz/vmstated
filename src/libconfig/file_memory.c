@@ -67,7 +67,7 @@ fm_new(const char *filename)
 	bzero(fm, sizeof(struct file_memory));
 	strncpy(fm->filename, filename, PATH_MAX);
 
-	if ((fm->filefd = open(filename, O_RDONLY)) < 0) {
+	if ((fm->filefd = open(filename, O_RDONLY | O_CLOEXEC)) < 0) {
 		free(fm->filename);
 		free(fm);
 		return NULL;

@@ -369,7 +369,7 @@ ldr_new(struct log_director *ld, const char *log_directory, const char *logname)
 	LIST_INIT(&ldr->clients);
 
 	snprintf(logfile_name, PATH_MAX, "%s/%s.log", log_directory, logname);
-	if ((ldr->logfilefd = open(logfile_name, O_RDWR | O_CREAT | O_TRUNC)) < 0) {
+	if ((ldr->logfilefd = open(logfile_name, O_RDWR | O_CREAT | O_TRUNC | O_CLOEXEC)) < 0) {
 		free(ldr->logname);
 		free(ldr);
 		return NULL;

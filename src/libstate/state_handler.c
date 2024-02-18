@@ -114,14 +114,14 @@ sth_transitionto(struct state_handler *sth, uint64_t target_state)
 
 	/* attempt on_exit on current state */
 	if (sth->current->on_exit) {
-		if (sth->current->on_exit(sth->current, sth->ctx, st->to, st->to->id) < 0) {
+		if (sth->current->on_exit(sth->current, sth->ctx, st->to, st->to->id) != 0) {
 			syslog(LOG_ERR, "on_exit returned error");
 			return -1;
 		}
 	}
 
 	if (st->to->on_enter) {
-		if (st->to->on_enter(st->to, sth->ctx, sth->current, sth->current->id) < 0) {
+		if (st->to->on_enter(st->to, sth->ctx, sth->current, sth->current->id) != 0) {
 			syslog(LOG_ERR, "on_enter returned error");
 			return -1;
 		}

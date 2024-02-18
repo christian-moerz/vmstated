@@ -75,7 +75,7 @@ pr_new(const char *filename)
 	bzero(pr, sizeof(struct parser_reader));
 	strncpy(pr->filename, filename, PATH_MAX);
 
-	if ((pr->filefd = open(filename, O_RDONLY)) < 0) {
+	if ((pr->filefd = open(filename, O_RDONLY | O_CLOEXEC)) < 0) {
 		free(pr->filename);
 		free(pr);
 		return NULL;

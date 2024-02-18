@@ -408,6 +408,44 @@ bd_getvmbyname(struct bhyve_director *bd, const char *name)
 }
 
 /*
+ * initiates a startup for all virtual machines that have autostart set
+ */
+int
+bd_runautostart(struct bhyve_director *bd)
+{
+	if (!bd) {
+		errno = EINVAL;
+		return -1;
+	}
+
+	struct bhyve_watched_vm *bwv = 0, *bwv_temp = 0;
+
+	if (pthread_mutex_lock(&bd->mtx)) {
+		return -1;
+	}
+
+	SLIST_FOREACH_SAFE(bwv, &bd->statelist, entries, bwv_temp) {
+		if (!bc_get_autostart(bwv->config))
+			continue;
+		
+		if (pthread_mutex_unlock(&bd->mtx))
+			return -1;
+
+		if (bd_startvm(bd, bc_get_name(bwv->config))) {
+			syslog(LOG_ERR, "failed to autostart virtual machine \"%s\"",
+			       bc_get_name(bwv->config));
+		}
+
+		if (pthread_mutex_lock(&bd->mtx))
+			return -1;
+	}
+
+	pthread_mutex_unlock(&bd->mtx);
+
+	return 0;
+}
+
+/*
  * attempt stopping a vm
  */
 int

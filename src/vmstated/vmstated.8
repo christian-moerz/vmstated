@@ -12,7 +12,7 @@
 .\"WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
 .\"ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 .\"OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
-.Dd $Mdocdate: December 22 2023 $
+.Dd $Mdocdate: February 16 2023 $
 .Dt VMSTATED 8
 .Os
 .Sh NAME
@@ -174,6 +174,18 @@ system to its' original state.
 .It stopped Ta The virtual machine is now stopped. It can be restarted by the user.
 .El
 .Pp
+Hook scripts are executed by
+.Nm
+synchronously - it waits for each process to complete before it
+continues.
+.Pp
+.Nm
+expects each hook script to return exit code 0 on successful
+completion. Any other exit code will lead
+.Nm
+to assume the state change failed and move the virtual machine into a
+failure state.
+.Pp
 To make
 .Nm
 execute a script for a particular state, place an executable (binary
@@ -189,6 +201,9 @@ as well as of any hook scripts it calls during state transitions. The
 log filenames are set to the virtual machine's name and the suffix
 ".log".
 .Pp
+The output from hook scripts is also included in each virtual machine's
+log file.
+.Pp
 Log files record stdout as well as stderr output.
 .Ss Failure Modes
 If a virtual machine fails to start correctly, i.e. either due to
@@ -202,6 +217,9 @@ within the last number of seconds set by value "maxrestarttime",
 .Nm
 will enter the virtual machine into failure mode and no longer attempt
 a restart.
+.Pp
+Virtual machines are also entered into failure mode when one of its
+hook scripts indicates a failure by returning a non-zero exit code.
 .Pp
 To restart a virtual machine that entered into failure mode, you first
 need to reset its state. You can do so by using
@@ -354,7 +372,7 @@ in the future.
 .Pp
 At the moment,
 .Nm
-must be started as root. As of version 0.06, it is not making use of
+must be started as root. As of version 0.07, it is not making use of
 .Xr capsicum 4
 to limit its system interaction capabilities.
 .Pp
@@ -363,10 +381,8 @@ file but are not yet respected by
 .Nm
 when authorizing users to communicate with
 .Nm
-via its socket. By default
-.Nm 's
-socket is not world-writeable and thus requires root level privileges
-to communicate through the use of
+via its socket. By default this socket is not world-writeable and thus
+requires root level privileges to communicate through the use of
 .Xr vmstatedctl 1 .
 .Pp
 With its initial release,
@@ -389,7 +405,27 @@ does not allow to be started multiple times. If another instance of it
 is already running, it will print an error message and terminate.
 .Sh BUGS
 .Pp
-There may be bugs lurking in the dark. Particularly with
+There are some known issues:
+.Bl -bullet -compact
+.It
+file descriptors are leaked to hook scripts when they get executed.
+.It
+if a hook script fails to complete within a reasonable amount of time,
+it may cause
+.Nm
+to hang because it waits for the completion of every hook script
+before it continues processing events and commands.
+.It
+if
+.Nm
+fails to correctly initialize after reading in its configuration files
+and forking; this may lead to situations where
+.Nm
+actually fails to start correctly but still returns exit code zero
+upon daemonizing.
+.El
+.Pp
+There may be additional bugs lurking in the dark. Particularly with
 .Bl -bullet -compact
 .It
 parsing configuration files with syntax errors,

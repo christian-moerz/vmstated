@@ -72,6 +72,22 @@ struct vmstated_opts {
 };
 
 /*
+ * communicate program error
+ */
+int
+vmstated_err(int pipefd[2], int errcode, const char *message)
+{
+	int result = -1;
+
+	if (pipefd[1] >= 0)
+		if (write(pipefd[1], &result, sizeof(result)) < 0) {
+			syslog(LOG_ERR, "Failed to communicate to parent process");
+		}
+	
+	err(errcode, "%s", message);
+}
+
+/*
  * listener method for receiving data from socket
  */
 int
@@ -85,13 +101,15 @@ vmstated_recv_data(void *ctx, uid_t uid, pid_t pid, const char *cmd, const char 
  */
 int
 vmstated_launch(struct vmstated_opts *opts,
-		struct bhyve_configuration_store *bcs)
+		struct bhyve_configuration_store *bcs,
+		int pipefd[2])
 {
 	struct log_director *ld = 0;
 	struct bhyve_configuration_store_obj *bcso = 0;
 	struct bhyve_director *bd = 0;
 	struct socket_handle *sh = 0;
 	struct vmstated_message_subscriber *vmsms = 0;
+	int result = 0;
 
 	if (!(ld = ld_new(opts->verbose, opts->log_path))) {
 	}
@@ -99,13 +117,13 @@ vmstated_launch(struct vmstated_opts *opts,
 	if (!(bcso = bcsobj_frombcs(bcs))) {
 		ld_free(ld);
 		bcs_free(bcs);
-		err(errno, "Failed to construct configuration store object");
+		vmstated_err(pipefd, errno, "Failed to construct configuration store object");
 	}
 
 	if (!(bd = bd_new(bcso, ld))) {
 		ld_free(ld);
 		bcs_free(bcs);
-		err(errno, "Failed to construct bhyve director");
+		vmstated_err(pipefd, errno, "Failed to construct bhyve director");
 	}
 
 	/* assign a new cgo */
@@ -113,16 +131,22 @@ vmstated_launch(struct vmstated_opts *opts,
 		bd_free(bd);
 		ld_free(ld);
 		bcs_free(bcs);
-		err(errno, "Failed to prepare configuration generator");
+		vmstated_err(pipefd, errno, "Failed to prepare configuration generator");
 	}
 
 	do {
+		/* remove any left over socket file */
+		if (unlink(opts->socket_path) < 0) {
+			vmstated_err(pipefd, errno, "Failed to remove orphaned socket file");
+		}
+		
 		if (!(sh = sh_new(opts->socket_path, 0))) {
 			ld_free(ld);
 			sh_free(sh);
 			bd_free(bd);
 			bcs_free(bcs);
-			err(errno, "Failed to set up socket \"%s\"", opts->socket_path);
+			syslog(LOG_ERR, "Failed to set up communications socket \"%s\"", opts->socket_path);
+			vmstated_err(pipefd, errno, "Failed to set up communications socket");
 		}
 
 		if (!(vmsms = vmsms_new(sh))) {
@@ -130,7 +154,7 @@ vmstated_launch(struct vmstated_opts *opts,
 			sh_free(sh);
 			bd_free(bd);
 			bcs_free(bcs);
-			err(errno, "Failed to set up message helper");
+			vmstated_err(pipefd, errno, "Failed to set up message helper");
 		}
 
 		if (bd_subscribe_commands(bd, vmsms_getmessagesub_obj(vmsms))) {
@@ -138,18 +162,29 @@ vmstated_launch(struct vmstated_opts *opts,
 			ld_free(ld);
 
 			/* failed to subscribe to data recv */
-			err(errno, "Failed to subscribe bhyve director to message reception");
-			
-			break;
+			vmstated_err(pipefd, errno, "Failed to subscribe bhyve director to message reception");
 		}
 		
 		/* start listener */
 		if (sh_start(sh)) {
 			/* failed to start socket */
-			ld_free(ld);
-			sh_free(sh);
+			result = -1;
 			break;
 		}
+
+		/* initiate autostart */
+		if (bd_runautostart(bd)) {
+			syslog(LOG_ERR, "Autostart failed");
+			result = -1;
+			break;
+		}
+
+		/* now communicate success to parent */
+		if (pipefd[1] >= 0)
+			if (write(pipefd[1], &result, sizeof(result)) < 0) {
+				syslog(LOG_ERR, "Failed to communicate to parent process");
+				err(errno, "Failed to communicate to parent process");
+			}
 
 		if (pthread_mutex_lock(&vmstated_sigmtx))
 			err(errno, "Failed to lock signal mutex");
@@ -172,8 +207,13 @@ vmstated_launch(struct vmstated_opts *opts,
 	/* release resources */
 	bd_free(bd);
 	ld_free(ld);
+
+	if ((result < 0) && (pipefd[1] >= 0)) {
+		if (write(pipefd[1], &result, sizeof(result)) < 0)
+			syslog(LOG_ERR, "Failed to communicate to parent process");
+	}
 	
-	return 0;
+	return result;
 }
 
 /*
@@ -238,7 +278,7 @@ write_pidfile(const char *pidfile)
 	size_t pidlen = 0;
 	int result = 0;
 
-	if ((pidfd = open(pidfile, O_RDWR | O_CREAT | O_TRUNC)) < 0) {
+	if ((pidfd = open(pidfile, O_RDWR | O_CREAT | O_TRUNC | O_CLOEXEC)) < 0) {
 		syslog(LOG_ERR, "Failed to open or create pid file \"%s\"", pidfile);
 		return -1;
 	}
@@ -269,7 +309,7 @@ print_usage()
 	printf("\t-f\t\tStay in foreground, do not daemonize\n");
 	printf("\t-p\t\tWrite pidfile to different path\n");
 	printf("\t-v\t\tBe more verbose\n");
-	exit(0);
+	return 0;
 }
 
 /*
@@ -279,6 +319,7 @@ int
 handle_opts(int argc, char **argv, struct vmstated_opts *default_opts)
 {
 	int c;
+	int result = 0;
 
 	while ((c = getopt(argc, argv, "fhc:p:s:v")) != -1) {
 		switch (c) {
@@ -296,11 +337,16 @@ handle_opts(int argc, char **argv, struct vmstated_opts *default_opts)
 			break;
 		case 'h':
 			print_usage();
+			exit(0);
+			break;
+		case '?':
+			print_usage();
+			result = EX_USAGE;
 			break;
 		}
 	}
 	
-	return 0;
+	return result;
 }
 
 /*
@@ -341,12 +387,24 @@ check_already_running(struct vmstated_opts *default_opts)
  * run actual program
  */
 int
-run_program(struct vmstated_opts *default_opts,
-	    struct bhyve_configuration_store *bcs)
+run_program(struct vmstated_opts *default_opts, int pipefd[2])
 {
 	int result = 0;
-
+	struct bhyve_configuration_store *bcs = 0;
+	
 	syslog(LOG_INFO, "vmstated starting");
+
+	if (!(bcs = bcs_new(default_opts->configdir_path))) {
+		vmstated_err(pipefd, ENOMEM, "Failed to instantiate configuration store");
+	}
+
+	syslog(LOG_INFO, "Loading config data");
+
+	/* walk configuration directory */
+	if (bcs_walkdir(bcs)) {
+		bcs_free(bcs);
+		vmstated_err(pipefd, errno, "Failed to walk configuration directory");
+	}
 
 	setup_sighandler();
 
@@ -355,11 +413,10 @@ run_program(struct vmstated_opts *default_opts,
 	if (write_pidfile(default_opts->pidfile_path)) {
 		syslog(LOG_ERR, "Could not write pid file \"%s\"",
 		       default_opts->pidfile_path);
-		err(errno, "Failed to write pid file \"%s\"",
-		    default_opts->pidfile_path);
+		vmstated_err(pipefd, errno, "Failed to write pid file");
 	}
 	
-	result = vmstated_launch(default_opts, bcs);
+	result = vmstated_launch(default_opts, bcs, pipefd);
 	
 	syslog(LOG_INFO, "vmstated shutting down");
 
@@ -409,8 +466,13 @@ main(int argc, char **argv)
 {
 	/* set sane defaults for the beginning */
 	struct vmstated_opts default_opts = {0};
-	struct bhyve_configuration_store *bcs = 0;
 	int result = 0;
+	int pipefd[2] = {-1, -1};
+
+	if (0 != getuid()) {
+		errno = EPERM;
+		err(EX_NOPERM, "vmstated must be run as root");
+	}
 	
 	openlog("vmstated", LOG_PID, LOG_DAEMON);
 
@@ -419,8 +481,8 @@ main(int argc, char **argv)
 	strncpy(default_opts.socket_path, DEFAULTPATH_SOCKET, PATH_MAX);
 	strncpy(default_opts.log_path, DEFAULTPATH_LOGDIR, PATH_MAX);
 
-	if (handle_opts(argc, argv, &default_opts))
-		err(errno, "Failed to handle program arguments");
+	if ((result = handle_opts(argc, argv, &default_opts)))
+		exit(result);
 
 	if (check_logdir(&default_opts))
 		err(errno, "Failed to configure log directory");
@@ -429,29 +491,28 @@ main(int argc, char **argv)
 		err(errno, "Failed to check whether program is already running");
 	}
 
-	if (!(bcs = bcs_new(default_opts.configdir_path))) {
-		err(ENOMEM, "Failed to instantiate configuration store");
-	}
-
-	syslog(LOG_INFO, "Loading config data");
-
-	/* walk configuration directory */
-	if (bcs_walkdir(bcs)) {
-		bcs_free(bcs);
-		err(errno, "Failed to walk configuration directory");
-	}
-	
 	if (default_opts.foreground)
-		return run_program(&default_opts, bcs);
-	else {
+		return run_program(&default_opts, pipefd);
+
+	if (pipe(pipefd) < 0)
+		err(errno, "Failed to create communications pipe");
+	
+	if (0 == fork()) {
+		close(pipefd[0]);
+		
 		if (0 == fork()) {
-			if (0 == fork()) {
-				return run_program(&default_opts, bcs);
-			}
-			return 0;
-			closelog();
+			return run_program(&default_opts, pipefd);
 		}
+		return 0;
 		closelog();
 	}
-	return 0;
+	closelog();
+	
+	if (read(pipefd[0], &result, sizeof(result)) < 0)
+		return EX_IOERR;
+	
+	close(pipefd[0]);
+	close(pipefd[1]);
+	
+	return result;
 }

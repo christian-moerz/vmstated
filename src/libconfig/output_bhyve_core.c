@@ -218,7 +218,7 @@ obc_combine_with(struct output_bhyve_core *obc, const char *file_in)
 
 	do {
 	
-		if ((filefd = open(obc->configfile, O_RDWR | O_CREAT | O_TRUNC )) < 0) {
+		if ((filefd = open(obc->configfile, O_RDWR | O_CREAT | O_TRUNC | O_CLOEXEC)) < 0) {
 			result = -1;
 			break;
 		}

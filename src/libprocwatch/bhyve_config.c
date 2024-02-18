@@ -938,3 +938,17 @@ bc_get_generateacpi(const struct bhyve_configuration *bc)
 
 	return bc->generate_acpi_tables;
 }
+
+/*
+ * get autostart status
+ */
+bool
+bc_get_autostart(const struct bhyve_configuration *bc)
+{
+	if (!bc) {
+		errno = EINVAL;
+		return false;
+	}
+
+	return bc->autostart;
+}

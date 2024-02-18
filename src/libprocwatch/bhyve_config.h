@@ -65,6 +65,7 @@ int         bc_set_sockets(const struct bhyve_configuration *bc, uint16_t socket
 uint16_t    bc_get_sockets(const struct bhyve_configuration *bc);
 int         bc_set_cores(const struct bhyve_configuration *bc, uint16_t cores);
 uint16_t    bc_get_cores(const struct bhyve_configuration *bc);
+bool        bc_get_autostart(const struct bhyve_configuration *bc);
 const struct bhyve_configuration_console_list *
             bc_get_consolelist(const struct bhyve_configuration *bc);
 bool

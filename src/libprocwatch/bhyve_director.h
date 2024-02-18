@@ -48,5 +48,6 @@ struct bhyve_vm_manager_info *bd_getinfo(struct bhyve_director *bd);
 int
 bd_set_cgo(struct bhyve_director *bd,
 	   struct config_generator_object *cgo);
+int bd_runautostart(struct bhyve_director *bd);
 
 #endif /* __BHYVE_DIRECTOR_H__ */
