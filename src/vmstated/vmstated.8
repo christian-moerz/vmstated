@@ -408,7 +408,16 @@ is already running, it will print an error message and terminate.
 There are some known issues:
 .Bl -bullet -compact
 .It
-file descriptors are leaked to hook scripts when they get executed.
+There is no way yet to make
+.Nm
+reload its configuration files. If you modify configuration files, you
+need to restart
+.Nm
+for it to re-read settings from the file system. However, unless you
+first shut down any running virtual machines, you will end up with
+orphaned
+.Xr bhyve 8
+processes.
 .It
 if a hook script fails to complete within a reasonable amount of time,
 it may cause

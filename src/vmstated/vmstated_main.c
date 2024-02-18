@@ -137,7 +137,8 @@ vmstated_launch(struct vmstated_opts *opts,
 	do {
 		/* remove any left over socket file */
 		if (unlink(opts->socket_path) < 0) {
-			vmstated_err(pipefd, errno, "Failed to remove orphaned socket file");
+			if (errno != ENOENT)
+				vmstated_err(pipefd, errno, "Failed to remove orphaned socket file");
 		}
 		
 		if (!(sh = sh_new(opts->socket_path, 0))) {
