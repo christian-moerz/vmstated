@@ -29,6 +29,7 @@
 #include <stddef.h>
 #include <stdlib.h>
 #include <strings.h>
+#include <syslog.h>
 #include <unistd.h>
 
 #include "../libconfig/config_core.h"
@@ -77,26 +78,42 @@ ptc_translate(struct param_translate_core *ptc)
 		return -1;
 	}
 
+	syslog(LOG_INFO, "Staring bhyve_config to core translation");
+
 	ptc->bpc = bpc_new(bc_get_name(ptc->bc));
 
-	/* add a hostbridge */
-	if (bpc_addpcislot_at(ptc->bpc, 0, 0, 0, bpp_new_hostbridge(HOSTBRIDGE)))
-		return -1;
-
+	/* add bootrom */
 	if (bc_get_bootrom(ptc->bc)) {
 		/* TODO add support for vars file */
 		bpc_set_bootrom(ptc->bpc, bc_get_bootrom(ptc->bc), false, NULL);
 	}
 
+	/* add core configuration variables */
 	bpc_set_yieldonhlt(ptc->bpc, bc_get_vmexithlt(ptc->bc));
 	bpc_set_generateacpi(ptc->bpc, bc_get_generateacpi(ptc->bc));
 	bpc_set_wired(ptc->bpc, bc_get_wired(ptc->bc));
-	
+
+	/* add memory and cpu data */
 	bc_transfer_nn_variable(ptc, memory);
 	bc_transfer_nn_variable(ptc, numcpus);
 	bc_transfer_nn_variable(ptc, sockets);
 	bc_transfer_nn_variable(ptc, cores);
+
+	if (bc_get_hostbridge(ptc->bc)) {
+		syslog(LOG_INFO, "Translating hostbridge configuration");
+		/* add a hostbridge */
+		if (bpc_addpcislot_at(ptc->bpc,
+				  0, 0, 0,
+				  bpp_new_hostbridge(
+					  !strcasecmp(bc_get_hostbridge(ptc->bc), "amd") ? HOSTBRIDGE_AMD : HOSTBRIDGE))) {
+			syslog(LOG_ERR, "Failed to add hostbridge to core config");
+			return -1;
+		}
+	} else {
+		syslog(LOG_INFO, "No hostbridge specified in config");
+	}
 	
+	/* add consoles */
 	if (bc_get_consolecount(ptc->bc)) {
 		/* transfer console information */
 		const struct bhyve_configuration_console_list *bccl = 0;
@@ -119,9 +136,11 @@ ptc_translate(struct param_translate_core *ptc)
 		}
 
 		/* we need an LPC ISA bridge now to connect consoles */
-		if (bpc_addpcislot_at(ptc->bpc, 1, 0, 0, bpp_new_isabridge()))
+		if (bpc_addpcislot_at(ptc->bpc, 0, 1, 0, bpp_new_isabridge()))
 			return -1;
 	}
+
+	syslog(LOG_INFO, "Translation completed");
 
 	return 0;
 }

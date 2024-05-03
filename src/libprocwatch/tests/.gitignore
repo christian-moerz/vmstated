@@ -2,3 +2,4 @@ test_bhyve_config
 test_bhyve_director
 test_process_def
 test_process_state
+test_daemon_config

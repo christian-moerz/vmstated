@@ -137,6 +137,10 @@ pd_launch_redirected(struct process_def *pd, pid_t *pid,
 {
 	if (!pd || !pid)
 		return -1;
+
+	/* TODO add wrapper to add environment variable with vm name and command
+	 *      i.e. vmname = test, cmd = start
+	 */
 	
 	pid_t procpid = 0;
 	struct log_director_redirector_client *ldrd = 0;

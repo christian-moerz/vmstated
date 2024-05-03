@@ -86,9 +86,9 @@ sch_runscript(const char *exepath, bool waitfinish, struct log_director_redirect
 	argptr[1] = NULL;
 
 	pd = pd_new("user script", "run when state changes",
-		    exepath,
-		    argptr, /* no additional parameters */
-		    NULL);
+		    exepath, /* executable path */
+		    argptr,  /* no additional parameters */
+		    NULL);   /* no user context */
 	if (!pd) {
 		syslog(LOG_ERR, "sch_runscript: failed to instantiate new process_def");
 		return -1;

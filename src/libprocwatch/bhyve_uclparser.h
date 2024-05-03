@@ -28,6 +28,9 @@
 #ifndef __BHYVE_UCLPARSER_H__
 #define __BHYVE_UCLPARSER_H__
 
+#include <private/ucl/ucl.h>
+
+#include "bhyve_config.h"
 #include "../libcommand/nvlist_mapping.h"
 
 /*

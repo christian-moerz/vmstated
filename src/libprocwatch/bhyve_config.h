@@ -52,6 +52,7 @@ const char *bc_get_group(const struct bhyve_configuration *);
 const char *bc_get_description(const struct bhyve_configuration *);
 const char *bc_get_backingfile(const struct bhyve_configuration *);
 const char *bc_get_bootrom(const struct bhyve_configuration *);
+const char *bc_get_hostbridge(const struct bhyve_configuration *);
 int         bc_set_generated_config(struct bhyve_configuration *bc,
 				    const char *generated_config);
 const char *bc_get_generated_config(const struct bhyve_configuration *);

@@ -300,7 +300,7 @@ sc_new(const char *sockpath)
 }
 
 /*
- * closes and releases a socket connection
+ * closes and releases a client socket connection
  */
 void
 sc_free(struct socket_connection *sc)

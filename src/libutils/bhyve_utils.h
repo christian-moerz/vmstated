@@ -33,8 +33,8 @@
 		return shortcode->varname; \
 	}
 
-#define CREATE_GETTERFUNC_UINT16(structname, shortcode, varname)   \
-	uint16_t shortcode##_get_##varname (const struct structname *shortcode) { \
+#define CREATE_GETTERFUNC_NUMERIC(typename, structname, shortcode, varname) \
+	typename shortcode##_get_##varname (const struct structname *shortcode) { \
 		if (!shortcode) { \
 			errno = EINVAL; \
 			return 0; \
@@ -42,5 +42,10 @@
                 return shortcode->varname; \
 	}
 
+#define CREATE_GETTERFUNC_UINT16(structname, shortcode, varname)   \
+	CREATE_GETTERFUNC_NUMERIC(uint16_t, structname, shortcode, varname)
+
+#define CREATE_GETTERFUNC_UINT32(structname, shortcode, varname) \
+	CREATE_GETTERFUNC_NUMERIC(uint32_t, structname, shortcode, varname)
 
 #endif /* __BHYVE_UTILS_H__ */

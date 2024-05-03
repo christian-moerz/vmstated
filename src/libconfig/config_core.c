@@ -274,7 +274,7 @@ bpc_new(const char *vmname)
  * get an iterator over all pci slots
  */
 struct bhyve_parameters_pcislot_iter *
-bpc_iter_pcislots(struct bhyve_parameters_core *bpc)
+bpc_iter_pcislots(const struct bhyve_parameters_core *bpc)
 {
 	if (!bpc) {
 		errno = EINVAL;
@@ -454,6 +454,23 @@ bpp_new_hostbridge(bhyve_parameters_hostbridge_t hostbridge_type)
 	bpp->data.hostbridge.hostbridge_type = hostbridge_type;
 
 	return bpp;
+}
+
+/*
+ * get pointer to host bridge data
+ */
+const struct bhyve_parameters_hostbridge *
+bpp_get_hostbridge(const struct bhyve_parameters_pcislot *bpp)
+{
+	if (!bpp) {
+		errno = EINVAL;
+		return NULL;
+	}
+
+	if (TYPE_HOSTBRIDGE != bpp_get_slottype(bpp))
+		return NULL;
+
+	return &bpp->data.hostbridge;
 }
 
 struct bhyve_parameters_pcislot *

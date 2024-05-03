@@ -103,6 +103,9 @@ struct bhyve_configuration {
 	bool generate_acpi_tables;
 	bool wire_memory;
 	bool vmexit_on_halt;
+
+	/* hostbridge attribute */
+	char *hostbridge;
 	
 	LIST_ENTRY(bhyve_configuration) entries;
 };
@@ -172,7 +175,7 @@ struct nvlistitem_mapping bc_nvlist2config[] = {
 		.size = sizeof(time_t),
 		.varname = "maxrestarttime"
 	},
-	{ /* TODO implement feature */
+	{
 		.offset = offsetof(struct bhyve_configuration, autostart),
 		.value_type = BOOLEAN,
 		.size = sizeof(bool),
@@ -225,6 +228,12 @@ struct nvlistitem_mapping bc_nvlist2config[] = {
 		.value_type = BOOLEAN,
 		.size = sizeof(bool),
 		.varname = "vmexit_on_halt"
+	},
+	{
+		.offset = offsetof(struct bhyve_configuration, hostbridge),
+		.value_type = DYNAMICSTRING,
+		.size = sizeof(char *),
+		.varname = "hostbridge"
 	}
 };
 
@@ -394,26 +403,13 @@ bc_tonvlist(struct bhyve_configuration *bc, nvlist_t *nvl)
 }
 
 /*
+ * definition of bc_findmapping via macro
+ *
  * attempt looking up mapping via variable name
  *
  * returns NULL if nothing matches
  */
-struct nvlistitem_mapping *
-bc_findmapping(const char *varname)
-{
-	if (!varname)
-		return NULL;
-
-	size_t configcount = sizeof(bc_nvlist2config) / sizeof(struct nvlistitem_mapping);
-	size_t counter = 0;
-
-	for (counter = 0; counter < configcount; counter++) {
-		if (!strcmp(bc_nvlist2config[counter].varname, varname))
-			return &bc_nvlist2config[counter];
-	}
-
-	return NULL;
-}
+nvlistitem_mapping_lookupfunc(bc_nvlist2config, bc_findmapping);
 
 /*
  * read configuration from ucl object
@@ -521,6 +517,7 @@ bc_free(struct bhyve_configuration *bc)
 
 	free(bc->backing_filepath);
 	free(bc->generated_config);
+	free(bc->hostbridge);
 	
 	free(bc);
 }
@@ -790,6 +787,7 @@ CREATE_GETTERFUNC_STR(bhyve_configuration, bc, group);
 CREATE_GETTERFUNC_STR(bhyve_configuration, bc, description);
 CREATE_GETTERFUNC_STR(bhyve_configuration, bc, bootrom);
 CREATE_GETTERFUNC_STR(bhyve_configuration, bc, generated_config);
+CREATE_GETTERFUNC_STR(bhyve_configuration, bc, hostbridge);
 
 /*
  * get number of consoles

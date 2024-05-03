@@ -112,8 +112,14 @@ ATF_TC_BODY(tc_sc_connectandsend, tc)
 	sc_free(sc);
 
 	printf("stopping server...\n");
-	//ATF_REQUIRE_EQ(0, sh_stop(sh));
+	ATF_REQUIRE_EQ(0, sh_stop(sh));
+
+	printf("freeing sh...\n");
+	fflush(NULL);
 	sh_free(sh);
+
+	printf("completed\n");
+	fflush(NULL);
 	
 }
 ATF_TC_CLEANUP(tc_sc_connectandsend, tc)

@@ -25,29 +25,22 @@
  * SUCH DAMAGE.
  */
 
-#ifndef __NVLIST_MAPPING_H__
-#define __NVLIST_MAPPING_H__
+#ifndef __IDENT_KEEPER_H__
+#define __IDENT_KEEPER_H__
 
-#include <stddef.h>
-#include "../libutils/parser_mapping.h"
+struct ident_keeper_reservation;
+struct ident_keeper;
 
-#define nvlistitem_mapping parser_mapping
+uint64_t ikr_get_ident(struct ident_keeper_reservation *ikr);
+int ik_validate_reservation(struct ident_keeper *ik,
+			    struct ident_keeper_reservation *ikr);
+int ik_dispose(struct ident_keeper *ik,
+	       struct ident_keeper_reservation *ikr);
+struct ident_keeper_reservation *ik_reserve(struct ident_keeper *ik);
+struct ident_keeper *ik_new(void *ctx, uint64_t ident_min, uint64_t ident_max,
+			    bool(*check_ident)(void *, uint64_t));
+void ik_free(struct ident_keeper *ik);
 
-#define nvlistitem_mapping_lookupfunc(v, funcname) \
-	struct nvlistitem_mapping * \
-	funcname(const char *input) \
-	{ \
-		if (!input) \
-			return NULL; \
-		\
-		size_t configcount = sizeof(v) / sizeof(struct nvlistitem_mapping); \
-		size_t counter = 0; \
-		\
-		for (counter = 0; counter < configcount; counter++) { \
-			if (!strcmp(v[counter].varname, input)) \
-				return &v[counter]; \
-		} \
-		return NULL; \
-	}
+bool ik_always_valid(void *ctx, uint64_t ident);
 
-#endif /* __NVLIST_MAPPING_H__ */
+#endif /* __IDENT_KEEPER_H__ */

@@ -5,4 +5,5 @@ test_file_memory
 test_output
 test_output_file
 test_string_list
+test_ident_keeper
 \#*

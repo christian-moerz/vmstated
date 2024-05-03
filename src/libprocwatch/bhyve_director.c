@@ -30,6 +30,7 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 
+#include <ctype.h>
 #include <err.h>
 #include <errno.h>
 #include <limits.h>
@@ -44,6 +45,7 @@
 #include "bhyve_config.h"
 #include "bhyve_config_object.h"
 #include "bhyve_command.h"
+#include "bhyve_config_console.h"
 #include "bhyve_director.h"
 #include "bhyve_director_errors.h"
 #include "bhyve_messagesub_object.h"
@@ -264,7 +266,7 @@ bwv_generate_config(struct bhyve_watched_vm *bwv,
 
 	snprintf(generated_name, PATH_MAX, "%s.generated",
 		 bc_get_configfile(bwv->config));
-	syslog(LOG_INFO, "Generating configuratino for vm \"%s\" in file " \
+	syslog(LOG_INFO, "Generating configuration for vm \"%s\" in file " \
 	       "\"%s\"", bc_get_name(bwv->config), generated_name);
 	
 	if (cgo->generate_config_file)
@@ -273,6 +275,75 @@ bwv_generate_config(struct bhyve_watched_vm *bwv,
 		}
 	
 	return -1;
+}
+
+/*
+ * creates symlink to consoles
+ */
+int
+bwv_linkconsoles(struct bhyve_watched_vm *bwv, bool link)
+{
+	const struct bhyve_configuration_console *bcc = 0;
+	const struct bhyve_configuration_console_list *bccl = 0;
+	char backend_name[PATH_MAX] = {0};
+	size_t console_count = bc_get_consolecount(bwv->config);
+	size_t counter = 0;
+	size_t name_len = 0;
+	char link_path[PATH_MAX] = {0};
+	int retcode = 0;
+
+	bccl = bc_get_consolelist(bwv->config);
+
+	syslog(LOG_INFO, "%sinking %zu consoles", link ? "L" : "Unl", console_count);
+
+	for (counter = 0; counter < console_count; counter++) {
+		bcc = bccl_get_consolebyidx(bccl, counter);
+		if (!bcc)
+			continue;
+
+		syslog(LOG_INFO, "%sinking console %zu", link? "L" : "Unl", counter);
+		
+		if (link) {
+			strncpy(backend_name, bcc_get_backend(bcc), PATH_MAX);
+			name_len = strlen(backend_name);
+			switch(toupper(backend_name[name_len-1])) {
+			case 'A':
+				backend_name[name_len-1] = 'B';
+				break;
+			case 'B':
+				backend_name[name_len-1] = 'A';
+				break;
+			}
+
+			syslog(LOG_INFO, "Backend path is %s", backend_name);
+		}
+		
+		strncpy(link_path, bc_get_backingfile(bwv->config), PATH_MAX);
+		/* clear filename from path */
+		if (strrchr(link_path, '/')) {
+			*(strrchr(link_path, '/')+1) = 0;
+		}
+		name_len = PATH_MAX - strlen(link_path) - 1;
+		/* append console name */
+		strncat(link_path, bcc_get_name(bcc), name_len);
+
+		if (link) {
+			/* first unlink before symlinking, in case an old
+			   link still is around */
+			unlink(link_path);
+			syslog(LOG_INFO, "Linking %s -> %s", link_path, backend_name);
+			retcode = symlink(backend_name, link_path);
+		} else {
+			syslog(LOG_INFO, "Unlinking %s", link_path);
+			retcode = unlink(link_path);
+		}
+		if (retcode)
+			break;
+	}
+
+	syslog(LOG_INFO, "Console links %s", link ? "created" : "unlinked");
+	
+	return retcode;
 }
 
 /*
@@ -532,6 +603,12 @@ bd_startvm(struct bhyve_director *bd, const char *name)
 		return BD_ERR_VMCONFGENFAIL;
 	}
 
+	/* attempt linking consoles */
+	if (bwv_linkconsoles(bwv, true)) {
+		/* linking failed, only warn */
+		syslog(LOG_WARNING, "Failed to link consoles");
+	}
+
 	/* launch vm */
 	if (0 != (result = psv_startvm(bwv->state, &pid, bwv->ldr))) {
 		if (result > 0) {
@@ -689,6 +766,13 @@ bd_kqueue_thread(struct bhyve_director *bd)
 			break;
 		case EVFILT_PROC:
 			bwv = (void *) event.udata;
+
+			/* attempt imlinking consoles */
+			if (bwv_linkconsoles(bwv, false)) {
+				/* linking failed, only warn */
+				syslog(LOG_WARNING, "Failed to unlink consoles");
+			}
+			
 			if (WIFEXITED(event.data)) {
 				exitcode = WEXITSTATUS(event.data);
 				psv_onexit(bwv->state, exitcode);
@@ -951,6 +1035,11 @@ bd_recv_ondata(void *ctx, uid_t uid, pid_t pid, const char *cmd,
 	}
 
 	/* TODO implement with separate command handler */
+	/* TODO encapsulate bd_startvm and bd_stopvm with threads
+	 *      this will mean, we can't synchronously return exit codes
+	 *	to the command line client, because we don't want to wait
+	 *      for long running scripts
+	 */
 	if (!result) {
 		if (!strcmp(bcmd.cmd, "startvm")) {
 			syslog(LOG_INFO, "calling bd_startvm");

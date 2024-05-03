@@ -1,4 +1,4 @@
-VERSION=0.05
+VERSION=0.10
 
 SUBDIR= src
 
@@ -6,7 +6,7 @@ localport:
 	mkdir vmstated-${VERSION}
 	tar cvf - src rc doc/examples | tar -C vmstated-${VERSION} -xf -
 	cp Makefile vmstated-${VERSION}/
-	tar czvf christian-moerz-vmstated-0.05_GH0.tar.gz vmstated-${VERSION}
+	tar czvf christian-moerz-vmstated-${VERSION}_GH0.tar.gz vmstated-${VERSION}
 	doas /bin/mv christian-moerz-vmstated-${VERSION}_GH0.tar.gz /usr/ports/distfiles
 	/bin/rm -fr vmstated-${VERSION}
 

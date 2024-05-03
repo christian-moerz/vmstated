@@ -62,6 +62,9 @@ struct bhyve_parameters_bootrom {
 	char varsfile[PATH_MAX];
 };
 
+/* the core configuration structure
+   use libconfig's ptc_translate to convert data from a
+   bhyve_configuration structure into this */
 struct bhyve_parameters_core;
 struct bhyve_parameters_pcislot;
 struct bhyve_parameters_pcislot_iter;
@@ -97,13 +100,16 @@ bpc_addpcislot_at(struct bhyve_parameters_core *bpc,
 		  struct bhyve_parameters_pcislot *bpp);
 const char     *bpc_get_vmname(const struct bhyve_parameters_core *bpc);
 
-struct bhyve_parameters_pcislot_iter *bpc_iter_pcislots(struct bhyve_parameters_core *bpc);
+struct bhyve_parameters_pcislot_iter *bpc_iter_pcislots(const struct bhyve_parameters_core *bpc);
 bool		bppi_next(struct bhyve_parameters_pcislot_iter *bppi);
 const struct bhyve_parameters_pcislot *bppi_item(struct bhyve_parameters_pcislot_iter *bppi);
 void		bppi_free(struct bhyve_parameters_pcislot_iter *bppi);
 
 bhyve_parameters_pcislot_t
 bpp_get_slottype(const struct bhyve_parameters_pcislot *bpp);
+
+const struct bhyve_parameters_hostbridge *
+bpp_get_hostbridge(const struct bhyve_parameters_pcislot *bpp);
 
 int
 bpp_get_pciid(const struct bhyve_parameters_pcislot *bpp,

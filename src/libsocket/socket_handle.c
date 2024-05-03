@@ -102,6 +102,15 @@ struct socket_connection {
 };
 
 /*
+ * a stack for a connection handler
+ */
+struct socket_connection_thread {
+	struct socket_handle *sh;
+	struct socket_connection *shc;
+	struct kevent event;	
+};
+
+/*
  * structure holding socket details and listeners
  */
 struct socket_handle {
@@ -122,6 +131,9 @@ struct socket_handle {
 	pthread_t listener_thread;
 	pthread_cond_t listener_ready;
 	pthread_mutex_t mtx;
+
+	size_t thread_counter;
+	pthread_cond_t thread_change;
 	
 	SLIST_HEAD(, socket_listener) listeners;
 	LIST_HEAD(, socket_connection) connections;
@@ -596,46 +608,29 @@ sh_disconnect_client(struct socket_handle *sh, struct socket_connection *shc)
 	return 0;
 }
 
-/*
- * thread accepting incoming connections, reading data
- */
 void *
-sh_accept_thread(void *data)
+sh_accept_handler_thread(void *data)
 {
-	struct socket_handle *sh = data;
-	struct socket_connection *shc = 0;
-	struct kevent event = {0};
 	struct xucred cred = {0};
 	struct socket_cmdparsedata parsedata = {0};
+	struct socket_connection_thread *sct = data;
+
+	if (!data) {
+		err(EINVAL, "Invalid input parameter for handler");
+	}
+	
+	struct socket_handle *sh = sct->sh;
+	struct socket_connection *shc = sct->shc;
 	socklen_t credlen = 0;
 	int clientfd = 0;
 	int result = 0;
 
-	if (!sh)
-		return NULL;
-
-	if (pthread_mutex_lock(&sh->mtx))
-		err(SH_ERR_MUTEXLOCKFAIL, "Failed mutex lock on accept thread");
-
-	sh->state = RUNNING;
-
-	/* signal ready */
-	pthread_cond_signal(&sh->listener_ready);
-
-	pthread_mutex_unlock(&sh->mtx);
-
-	while (1) {
-		if (kevent(sh->keventfd, NULL, 0, &event, 1, 0) < 0)
-			err(SH_ERR_KQUQUERFAILED, "Failed kevent query on accept thread");
-
-		if (event.ident == SH_EVT_CMD_SHUTDOWN)
-			break;
-
-		if (sh->socketfd == event.ident) {
+	do {
+		if (sh->socketfd == sct->event.ident) {
 			/* need to accept new connection */
 			if ((clientfd = accept(sh->socketfd, NULL, 0)) < 0)
 				err(SH_ERR_SOCKTACCTFAIL, "Failed to accept socket connection");
-
+			
 			/* get user credentials behind connection */
 			bzero(&cred, sizeof(struct xucred));
 			credlen = sizeof(struct xucred);
@@ -645,70 +640,74 @@ sh_accept_thread(void *data)
 			
 			if (!(shc = shc_new(sh, clientfd, cred.cr_uid, cred.cr_pid)))
 				err(SH_ERR_ITEMALLOCFAIL, "Failed to allocate connection");
-
+			
 			assert(shc->clientfd == clientfd);
-
+			
 			/* add client to connections */
 			if (pthread_mutex_lock(&sh->mtx))
 				err(SH_ERR_MUTEXLOCKFAIL, "Failed mutex lock during accept");
-
+			
 			LIST_INSERT_HEAD(&sh->connections, shc, entries);
-
+			
 			pthread_mutex_unlock(&sh->mtx);
-
+			
 			/* register for read events on connection */
-			bzero(&event, sizeof(struct kevent));
-			EV_SET(&event, shc->clientfd, EVFILT_READ, EV_ADD, 0, 0, NULL);
-			if (kevent(sh->keventfd, &event, 1, NULL, 0, NULL) < 0)
+			bzero(&sct->event, sizeof(struct kevent));
+			EV_SET(&sct->event, shc->clientfd, EVFILT_READ, EV_ADD, 0, 0, shc);
+			if (kevent(sh->keventfd, &sct->event, 1, NULL, 0, NULL) < 0)
 				err(SH_ERR_ADDKEVENTFAIL, "Failed to add kevent to queue");
 		} else {
-			if (event.flags & EV_EOF) {
+			
+			if (sct->event.flags & EV_EOF) {
 				/* client is disconnecting */
-				shc = sh_lookup_connection(sh, event.ident);
+				shc = sct->event.udata;
 				if (!shc)
-					continue;
-
+					break;
+				
 				syslog(LOG_ERR, "Disconnecting client");
-
+				
 				if (sh_disconnect_client(sh, shc)) {
 					/* TODO log error */
 				}
-			} else if (EVFILT_READ & event.filter) {
+			} else if (EVFILT_READ & sct->event.filter) {
 				syslog(LOG_ERR, "Received READ kevent");
 				
 				/* we want to read from client */
 				/* find matching connection and its buffer */
-				shc = sh_lookup_connection(sh, event.ident);
+				shc = sct->event.udata;
 				if (!shc) {
 					/* log error */
+
 					syslog(LOG_ERR, "Failed to lookup connection");
-					close(event.ident);
-					continue;
+					close(sct->event.ident);
+					break;
 				}
-				
+
 				/* read data from client */
-				if (sh_read_data(sh, shc, event.data) < 0) {
+				if (sh_read_data(sh, shc, sct->event.data) < 0) {
+					
 					/* close client connection on failure */
 					if (sh_disconnect_client(sh, shc)) {
 						syslog(LOG_ERR, "Failed to disconnect client");
 						/* TODO log error */
 					}
+					
 					syslog(LOG_ERR, "Failed to read from client");
-					continue;
+					break;
 				}
-
+				
 				bzero(&parsedata, sizeof(parsedata));				
 				if (sh_try_cmdparsing(shc, &parsedata)) {
 					syslog(LOG_ERR, "Failed to parse message data");
 					err(SH_ERR_MSGPARSERFAIL, "Failed to parse message data");
 				}
-
+				
 				/* if we're supposed to read more data, do just that */
 				if (SH_WRN_KEEPREADNMORE == parsedata.errcode) {
 					syslog(LOG_ERR, "Awaiting more input data");
-					continue;
+					break;
 				}
-
+				
 				if (parsedata.errcode) {
 					if (sh_reply_msg(sh, shc,
 							 parsedata.errcode,
@@ -718,7 +717,7 @@ sh_accept_thread(void *data)
 						    "Failed to reply error message");
 					}
 				}
-
+				
 				/* call listeners and send reply data to listeners */
 				result = sh_call_listeners(sh, shc);
 				/* shc contains a reply collector that helps us decide
@@ -746,12 +745,102 @@ sh_accept_thread(void *data)
 						/* TODO log error */
 					}
 				}
-
+				
 				/* Then drop the message from the buffer */
 				if (shc_dropmessage(shc, &parsedata))
 					err(SH_ERR_BUFFERCHGFAIL, "Failed to drop processed messge");
-			}
+			} 
 		}
+	} while (0);
+
+	/* release stack */
+	fflush(NULL);
+	free(sct);
+
+	fflush(NULL);
+	sct->event.flags = EV_ENABLE;
+	if (kevent(sh->keventfd, &sct->event, 1, NULL, 0, 0) < 0) {
+		/* it's ok if file descriptor went bad, because client
+		   may have disconnected */
+		if (EBADF != errno)
+			err(SH_ERR_ADDKEVENTFAIL, "Failed to re-enable kevent");
+	}
+	
+	if (pthread_mutex_lock(&sct->sh->mtx))
+		err(SH_ERR_MUTEXLOCKFAIL, "Failed to lock mutex");
+	
+	sct->sh->thread_counter--;
+
+	pthread_mutex_unlock(&sct->sh->mtx);
+	pthread_cond_signal(&sct->sh->thread_change);
+
+	return NULL;
+}
+
+/*
+ * thread accepting incoming connections, reading data
+ */
+void *
+sh_accept_thread(void *data)
+{
+	struct socket_handle *sh = data;
+	struct socket_connection *shc = 0;
+	struct kevent event = {0};
+	struct xucred cred = {0};
+	struct socket_cmdparsedata parsedata = {0};
+	struct socket_connection_thread *sct = 0;
+	socklen_t credlen = 0;
+	int clientfd = 0;
+	int result = 0;
+	pthread_t threadid = {0};
+	size_t thread_count = 0;
+
+	if (!sh)
+		return NULL;
+
+	if (pthread_mutex_lock(&sh->mtx))
+		err(SH_ERR_MUTEXLOCKFAIL, "Failed mutex lock on accept thread");
+
+	sh->state = RUNNING;
+
+	/* signal ready */
+	pthread_cond_signal(&sh->listener_ready);
+
+	pthread_mutex_unlock(&sh->mtx);
+
+	while (1) {
+		if (kevent(sh->keventfd, NULL, 0, &event, 1, 0) < 0) {
+			err(SH_ERR_KQUQUERFAILED, "Failed kevent query on accept thread");
+		}
+
+		event.flags |= EV_DISABLE;
+		if (kevent(sh->keventfd, &event, 1, NULL, 0, 0) < 0) {
+			err(SH_ERR_ADDKEVENTFAIL, "Failed to update kevent");
+		}
+
+		if (event.ident == SH_EVT_CMD_SHUTDOWN)
+			break;
+
+		sct = malloc(sizeof(struct socket_connection_thread));
+		if (!sct)
+			err(SH_ERR_ITEMALLOCFAIL, "Failed to allocate memory");
+		bzero(sct, sizeof(struct socket_connection_thread));
+		sct->sh = sh;
+		sct->shc = shc;
+		memcpy(&sct->event, &event, sizeof(struct kevent));
+
+		if (pthread_mutex_lock(&sct->sh->mtx))
+			err(SH_ERR_MUTEXLOCKFAIL, "Failed to lock mutex");
+
+		sct->sh->thread_counter++;
+		
+		pthread_mutex_unlock(&sct->sh->mtx);
+
+		if (pthread_create(&threadid, NULL, sh_accept_handler_thread, sct))
+			err(SH_ERR_THREADSTAFAIL, "Failed to launch handler thread");
+
+		if (pthread_join(threadid, NULL))
+		  err(SH_ERR_THREADSTAFAIL, "Failed to synchronize handler thread");
 	}
 
 	if (pthread_mutex_lock(&sh->mtx))
@@ -759,6 +848,19 @@ sh_accept_thread(void *data)
 
 	sh->state = STOPPED;
 	pthread_mutex_unlock(&sh->mtx);
+
+	/* wait for threads to finish */
+	do {
+		if (pthread_mutex_lock(&sct->sh->mtx))
+			err(SH_ERR_MUTEXLOCKFAIL, "Failed to lock mutex");
+
+		thread_count = sct->sh->thread_counter;
+		
+		if (thread_count > 0) {
+			pthread_cond_wait(&sct->sh->thread_change, &sct->sh->mtx);
+		}
+		pthread_mutex_unlock(&sct->sh->mtx);
+	} while(thread_count > 0);
 
 	return NULL;
 }
@@ -907,6 +1009,12 @@ sh_new(const char *sockpath, mode_t mode)
 		return NULL;
 	}
 
+	if (pthread_cond_init(&sh->thread_change, NULL)) {
+		/* failed to allocate condition variable */
+		sh_free(sh);
+		return NULL;
+	}
+
 	if (pthread_mutex_lock(&sh->mtx))
 		err(SH_ERR_MUTEXLOCKFAIL, "Failed to lock mutex on new");
 
@@ -978,6 +1086,9 @@ sh_free(struct socket_handle *sh)
 
 	if (pthread_cond_destroy(&sh->listener_ready))
 		err(SH_ERR_CONDDESTRFAIL, "Failed condition variable destruction");
+
+	if (pthread_cond_destroy(&sh->thread_change))
+		err(SH_ERR_CONDDESTRFAIL, "Failed condition variable destruction");		
 
 	if (pthread_mutex_destroy(&sh->mtx))
 		err(SH_ERR_MUTEXDESTFAIL, "Failed mutex destroy on free");

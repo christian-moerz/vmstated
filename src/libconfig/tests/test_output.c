@@ -40,7 +40,7 @@
 #include "../config_core.h"
 #include "../output_bhyve_core.h"
 
-ATF_TC(tc_obc_output);
+ATF_TC_WITH_CLEANUP(tc_obc_output);
 ATF_TC_HEAD(tc_obc_output, tc)
 {
 	int file_out = 0;
@@ -99,12 +99,12 @@ memory.size=4096M\n\
 name=testvm";
 	size_t len = strlen(contents);
 
-	file_out = open("combine_file", O_CREAT | O_RDWR);
+	file_out = open("combine_file2", O_CREAT | O_RDWR);
 	write(file_out, contents, len);
 	fchmod(file_out, S_IRUSR | S_IWUSR);
 	close(file_out);
 
-	file_out = open("compare_file", O_CREAT | O_RDWR);
+	file_out = open("compare_file2", O_CREAT | O_RDWR);
 	len = strlen(crosscheck);
 	write(file_out, crosscheck, len);
 	close(file_out);
@@ -114,6 +114,7 @@ ATF_TC_BODY(tc_obc_output, tc)
 	struct bhyve_parameters_core *bpc = 0;
 	struct bhyve_parameters_pcislot *bpp = 0;
 	struct output_bhyve_core *obc = 0;
+	char *path = NULL;
 
 	bpc = bpc_new("testvm");
 
@@ -138,15 +139,26 @@ ATF_TC_BODY(tc_obc_output, tc)
 	ATF_REQUIRE_EQ(0, bpc_addpcislot_at(bpc, 0, 2, 0, bpp));
 
 	/* TODO write to output file, dump and compare to target */
-	ATF_REQUIRE(0 != (obc = obc_new("test_output_file", bpc)));
+	obc = obc_new("test_output_file", bpc);
+	path = getwd(NULL);
+	printf("errno = %d\n", errno);
+	printf("path: %s\n", path);
+	free(path);
+	ATF_REQUIRE_EQ(0, errno);
+	ATF_REQUIRE(0 != obc);
 
-	ATF_REQUIRE_EQ(0, obc_combine_with(obc, "combine_file"));
+	ATF_REQUIRE_EQ(0, obc_combine_with(obc, "combine_file2"));
 	atf_utils_cat_file("test_output_file", "output:");
 	atf_utils_file_exists("test_output_file");
-	atf_utils_compare_file("test_output_file", "compare_file");
+	atf_utils_compare_file("test_output_file", "compare_file2");
 	
 	obc_free(obc);
 	bpc_free(bpc);
+}
+ATF_TC_CLEANUP(tc_obc_output, tc)
+{
+	unlink("compare_file2");
+	unlink("combine_file2");
 }
 
 ATF_TP_ADD_TCS(testplan)

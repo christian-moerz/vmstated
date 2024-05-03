@@ -7,6 +7,7 @@ LDADD+=		-lprocwatch${PIE_SUFFIX} -lstate${PIE_SUFFIX} -lutils${PIE_SUFFIX} \
 PIE_SUFFIX=	_pie
 STRIP=
 
-ATF_TESTS_C=	test_bhyve_config test_bhyve_director test_process_def test_process_state
+ATF_TESTS_C=	test_bhyve_config test_bhyve_director \
+		test_daemon_config test_process_def test_process_state
 
 .include <bsd.test.mk>

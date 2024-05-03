@@ -1,5 +1,5 @@
 PORTNAME=	vmstated
-DISTVERSION=	0.07
+DISTVERSION=	0.10
 CATEGORIES=	sysutils
 
 MAINTAINER=	freebsd@ny-central.org

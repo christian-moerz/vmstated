@@ -25,29 +25,60 @@
  * SUCH DAMAGE.
  */
 
-#ifndef __NVLIST_MAPPING_H__
-#define __NVLIST_MAPPING_H__
+#include "../bhyve_config.h"
 
-#include <stddef.h>
-#include "../libutils/parser_mapping.h"
+#include <sys/nv.h>
+#include <sys/stat.h>
 
-#define nvlistitem_mapping parser_mapping
+#include <private/ucl/ucl.h>
 
-#define nvlistitem_mapping_lookupfunc(v, funcname) \
-	struct nvlistitem_mapping * \
-	funcname(const char *input) \
-	{ \
-		if (!input) \
-			return NULL; \
-		\
-		size_t configcount = sizeof(v) / sizeof(struct nvlistitem_mapping); \
-		size_t counter = 0; \
-		\
-		for (counter = 0; counter < configcount; counter++) { \
-			if (!strcmp(v[counter].varname, input)) \
-				return &v[counter]; \
-		} \
-		return NULL; \
-	}
+#include <atf-c.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <limits.h>
+#include <pthread.h>
+#include <stdbool.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <time.h>
 
-#endif /* __NVLIST_MAPPING_H__ */
+#include "../daemon_config.h"
+
+ATF_TC_WITH_CLEANUP(tc_dconf_parsing);
+ATF_TC_HEAD(tc_dconf_parsing, tc)
+{
+}
+ATF_TC_BODY(tc_dconf_parsing, tc)
+{
+	int filefd = 0;
+	const char *teststring = "vmstated { tap_min = 1;\ntap_max = 1000; group = wheel;}\n";
+	struct daemon_config *dc = dconf_new();
+
+	ATF_REQUIRE(0 != dc);
+
+	filefd = open("/tmp/dconf_test", O_RDWR | O_CREAT);
+	fchmod(filefd, S_IRWXU | S_IRWXG | S_IROTH );
+	printf("errno = %d\n", errno);
+	ATF_REQUIRE(filefd >= 0);
+	ATF_REQUIRE(write(filefd, teststring, strlen(teststring))>0);
+	close(filefd);
+
+	ATF_REQUIRE_EQ(0, dconf_parseucl(dc, "/tmp/dconf_test"));
+
+	ATF_REQUIRE_EQ(1, dconf_get_tapid_min(dc));
+	ATF_REQUIRE_EQ(1000, dconf_get_tapid_max(dc));
+	ATF_REQUIRE_EQ(0, dconf_get_nmdmid_min(dc));
+
+	dconf_free(dc);
+	
+}
+ATF_TC_CLEANUP(tc_dconf_parsing, tc)
+{
+	unlink("/tmp/dconf_test");
+}
+
+ATF_TP_ADD_TCS(testplan)
+{
+	ATF_TP_ADD_TC(testplan, tc_dconf_parsing);
+	return atf_no_error();
+}

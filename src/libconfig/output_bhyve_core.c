@@ -34,6 +34,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <syslog.h>
 #include <unistd.h>
 
 #include "config_core.h"
@@ -124,6 +125,114 @@ obc_add_bool(struct output_bhyve_core *obc, const char *key, bool value)
 }
 
 /*
+ * fill in pci slots
+ */
+int
+obc_set_pcislots(struct output_bhyve_core *obc)
+{
+	struct bhyve_parameters_pcislot_iter *bppi = 0;
+	const struct bhyve_parameters_pcislot *bpp = 0;
+	uint8_t bus = 0, pcislot = 0, function = 0;
+	char pci_path[PATH_MAX+128] = {0};
+	char pci_device[256] = {0};
+	char pci_backend[256] = {0};
+
+	if (!(bppi = bpc_iter_pcislots(obc->bpc))) {
+		syslog(LOG_ERR, "Failed to get pci slot iterator");
+		return -1;
+	}
+
+	syslog(LOG_INFO, "Constructing pci data");
+
+	while (bppi_next(bppi)) {
+		bpp = bppi_item(bppi);
+		if (!bpp) {
+			syslog(LOG_ERR, "Got null from pci slot iterator");
+			break;
+		}
+
+		if (bpp_get_pciid(bpp, &bus, &pcislot, &function)) {
+			syslog(LOG_ERR, "Failed to get pci slot id");
+			return -1;
+		}
+
+		snprintf(pci_path, sizeof(pci_path),
+			 "pci.%d.%d.%d.path", bus, pcislot, function);
+		snprintf(pci_device, sizeof(pci_device),
+			 "pci.%d.%d.%d.device", bus, pcislot, function);
+		snprintf(pci_backend, sizeof(pci_backend),
+			 "pci.%d.%d.%d.backend", bus, pcislot, function);
+
+		syslog(LOG_INFO, "Looking at pci slot type %d",
+		       bpp_get_slottype(bpp));
+
+		switch (bpp_get_slottype(bpp)) {
+		case TYPE_ISABRIDGE:
+			if (obc_add(obc, pci_device, "lpc")) {
+				syslog(LOG_ERR, "Failed to add lpc output");
+				return -1;
+			}
+			break;
+		case TYPE_HOSTBRIDGE:
+			/* add either default or amd host bridge */
+			if (obc_add(obc, pci_device,
+				    bpp_get_hostbridge(bpp)->hostbridge_type == HOSTBRIDGE_AMD ? "amd_hostbridge" : "hostbridge" )) {
+				syslog(LOG_ERR, "Failed to add hostbridge output");
+				return -1;
+			}
+			break;
+		case TYPE_BLOCK:
+			return -1;
+		case TYPE_NET:
+			return -1;
+		case TYPE_CONTROL:
+			return -1;
+		case TYPE_CDROM:
+			return -1;
+		case TYPE_VNC:
+			return -1;
+		case TYPE_INVALID:
+			return -1;
+		}
+	}
+
+	bppi_free(bppi);
+
+	syslog(LOG_INFO, "Completed pci data construction");
+
+	return 0;
+}
+
+/*
+ * fill in console definitions
+ */
+int
+obc_set_consoles(struct output_bhyve_core *obc)
+{
+	const struct bhyve_parameters_comport *bpc_com = 0;
+	char comdef[256] = {0};
+	int result = 0;
+	
+	for (int i = 0; i < 4; i++) {
+		/* check whether comport is active */
+		bpc_com = bpc_get_comport(obc->bpc, i);
+
+		if (!bpc_com)
+			return -1;
+
+		if (!bpc_com->enabled)
+			continue;
+
+		/* i+1 because it starts at com1, not com0 */
+		snprintf(comdef, sizeof(comdef), "lpc.com%i.path", i + 1);
+		if ((result = obc_add(obc, comdef, bpc_com->backend)))
+			break;
+	}
+
+	return result;
+}
+
+/*
  * fill in core parameters
  */
 int
@@ -131,33 +240,61 @@ obc_set_core(struct output_bhyve_core *obc)
 {
 	char memory[32] = {0};
 	char numvar[32] = {0};
+	char bootrom[PATH_MAX*2+64] = {0};
+	const struct bhyve_parameters_bootrom *bp_boot = 0;
+	int result = 0;
 	
 	obc_add(obc, "name", bpc_get_vmname(obc->bpc));
 	if (bpc_get_memory(obc->bpc) > 0) {
 		snprintf(memory, 32, "%dM", bpc_get_memory(obc->bpc));
-		obc_add(obc, "memory.size", memory);
+		if ((result = obc_add(obc, "memory.size", memory)))
+			return result;
 	}
 
 	if (bpc_get_numcpus(obc->bpc)) {
 		snprintf(numvar, 32, "%d", bpc_get_numcpus(obc->bpc));
-		obc_add(obc, "cpus", numvar);
+		if ((result = obc_add(obc, "cpus", numvar)))
+			return result;
 	}
 
 	if (bpc_get_sockets(obc->bpc)) {
 		snprintf(numvar, 32, "%d", bpc_get_sockets(obc->bpc));
-		obc_add(obc, "sockets", numvar);
+		if ((result = obc_add(obc, "sockets", numvar)))
+			return result;
 	}
 
 	if (bpc_get_cores(obc->bpc)) {
 		snprintf(numvar, 32, "%d", bpc_get_cores(obc->bpc));
-		obc_add(obc, "sockets", numvar);
+		if ((result = obc_add(obc, "sockets", numvar)))
+			return result;
 	}
 
-	obc_add_bool(obc, "x86.vmexit_on_hlt", bpc_get_yieldonhlt(obc->bpc));
+	if ((result = obc_add_bool(obc,
+				   "x86.vmexit_on_hlt",
+				   bpc_get_yieldonhlt(obc->bpc))))
+		return result;
 
-	obc_add_bool(obc, "acpi_tables", bpc_get_generateacpi(obc->bpc));
+	if ((result = obc_add_bool(obc,
+				   "acpi_tables",
+				   bpc_get_generateacpi(obc->bpc))))
+		return result;
 
-	return 0;	
+	if ((bp_boot = bpc_get_bootrom(obc->bpc))) {
+		/* add bootrom if set */
+		snprintf(bootrom, sizeof(bootrom), "%s%s%s",
+			 bp_boot->bootrom,
+			 bp_boot->with_vars ? "," : "",
+			 bp_boot->varsfile);
+		if (obc_add(obc, "lpc.bootrom", bootrom))
+			return -1;
+	}
+
+	if ((result = obc_set_consoles(obc)))
+		return result;
+
+	result = obc_set_pcislots(obc);
+	
+	return result;
 }
 
 /*
@@ -185,6 +322,9 @@ obc_new(const char *configfile, const struct bhyve_parameters_core *bpc)
 	obc->bpc = bpc;
 
 	SLIST_INIT(&obc->lines);
+
+	syslog(LOG_INFO, "Building bhyve_config for file %s",
+	       configfile);
 
 	if (obc_set_core(obc)) {
 		obc_free(obc);

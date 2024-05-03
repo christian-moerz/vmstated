@@ -25,29 +25,24 @@
  * SUCH DAMAGE.
  */
 
-#ifndef __NVLIST_MAPPING_H__
-#define __NVLIST_MAPPING_H__
+#ifndef __DAEMON_CONFIG_H__
+#define __DAEMON_CONFIG_H__
 
-#include <stddef.h>
-#include "../libutils/parser_mapping.h"
+#include "../libcommand/nvlist_mapping.h"
 
-#define nvlistitem_mapping parser_mapping
+struct daemon_config;
 
-#define nvlistitem_mapping_lookupfunc(v, funcname) \
-	struct nvlistitem_mapping * \
-	funcname(const char *input) \
-	{ \
-		if (!input) \
-			return NULL; \
-		\
-		size_t configcount = sizeof(v) / sizeof(struct nvlistitem_mapping); \
-		size_t counter = 0; \
-		\
-		for (counter = 0; counter < configcount; counter++) { \
-			if (!strcmp(v[counter].varname, input)) \
-				return &v[counter]; \
-		} \
-		return NULL; \
-	}
+/* mapping lookup method */
+struct nvlistitem_mapping *dconf_findmapping(const char *);
 
-#endif /* __NVLIST_MAPPING_H__ */
+struct daemon_config *dconf_new();
+void dconf_free(struct daemon_config *dc);
+
+int dconf_parseucl(struct daemon_config *dc, const char *configfile);
+
+uint32_t dconf_get_tapid_min(const struct daemon_config *);
+uint32_t dconf_get_tapid_max(const struct daemon_config *);
+uint32_t dconf_get_nmdmid_min(const struct daemon_config *);
+uint32_t dconf_get_nmdmid_max(const struct daemon_config *);
+
+#endif /* __DAEMON_CONFIG_H__ */
